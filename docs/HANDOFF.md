@@ -5,6 +5,60 @@ Everything you need is on disk; this brief is the map.
 
 ---
 
+## 0. Current status (2026-07-21) — READ FIRST
+
+**The app now RUNS and the core dispatch loop is proven end-to-end on an emulator.**
+This supersedes the older "compile-only, never run" notes further down.
+
+### What was done this session
+1. **Ran the Android app on an emulator for the first time** and verified the full auth
+   path: launch → IT Cars login → phone/OTP against the live backend → new DRIVER created
+   in Postgres → role-routes to driver home → **token persistence** confirmed (force-kill +
+   relaunch stays signed in).
+2. **Built the coordinator dashboard** — the last missing piece of the loop:
+   - `feature/dispatch/.../CoordinatorHomeScreen.kt` + `CoordinatorHomeViewModel.kt`
+     (uses `myLegs()` → `GET /api/v1/legs/mine`). Lists posted legs with an OPEN/CLAIMED
+     status pill + a Refresh button; an internal `showCreate` flag swaps in the existing
+     `CreateJobScreen` (no nav lib). On publish it returns to the list and refreshes.
+   - `MainActivity` now routes COORDINATOR → `CoordinatorHomeScreen` (was going straight
+     into the create form). Post/feed/claim UI all already existed.
+3. **Drove the whole loop on one emulator with two accounts** and proved it:
+   - Coordinator posts a job → dashboard shows it **OPEN** (₹450, Gachibowli → DLF Cyber City).
+   - Driver sees it in the feed → **Claim Trip** → "Trip claimed!", feed empties.
+     DB: `legs.status=CLAIMED, claimed_by=1`, one `claims_audit` row (atomic first-claim-wins).
+   - Coordinator dashboard refresh → pill flips **OPEN → CLAIMED**.
+
+### How to run it here (Docker-free — Docker Desktop wouldn't start; disk was full)
+- **Backend as a host process** (no docker): build the fat jar once with the copied wrapper —
+  `cd backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew bootJar` — then run:
+  `SERVER_PORT=8081 DB_URL=jdbc:postgresql://localhost:5432/itcabs DB_USER=apple DB_PASSWORD=x
+  JWT_SECRET=<32+ chars> java -jar backend/build/libs/itcabs-backend-0.1.0.jar`
+  against **local Postgres 15** (db `itcabs`). Dev OTPs are printed to the log (`DevLogOtpSender`).
+- **Emulator**: `system-images;android-34;default;arm64-v8a`, AVD `itcabs`, booted headless
+  (`emulator -avd itcabs -no-window -gpu swiftshader_indirect`); drive via `adb`.
+  App debug BASE_URL is `http://10.0.2.2:8081/`.
+
+### Known gaps / caveats
+- **Claim needs a VERIFIED driver.** The claim gate requires `driver_profiles.kyc_status='VERIFIED'`,
+  but there's no driver-onboarding / admin-verify screen yet (admin portal deferred). For the
+  loop test the profile row was seeded directly in the DB. Building onboarding/verify is future work.
+- **Sign-out bug (open):** the shared TopAppBar "Sign out" (in `MainActivity`'s `RoleHome`,
+  unchanged this session) does not respond to taps from the **coordinator** screen, though it
+  works from the **driver** screen. Reproduced twice. Worked around with `adb shell pm clear
+  com.itcabs` to switch accounts. Flagged as a separate task — root cause not yet found.
+
+### Next plan (M2 UI, in priority order)
+1. **Fix the sign-out bug** (small, real defect; blocks clean account switching).
+2. **Driver "my trips" + job-detail** screens (`GET /legs/claimed`; designs `claimed_trip_screen`,
+   `job_details`) — the driver side after a claim.
+3. **Ratings** screen (`rating_screen`, `POST /legs/{id}/rating`).
+4. **Driver onboarding / KYC** so a driver can become claimable in-app (removes the DB-seed hack).
+5. **At-rest token encryption** (KeyStore/Tink) — prefs are app-private but not encrypted.
+6. **Room offline cache** in `:data` — lowest urgency.
+Realtime (WebSocket push so the coordinator dashboard updates without Refresh) stays an M3 item.
+
+---
+
 ## 1. What ITCABS is
 
 A production-grade transport-dispatch platform replacing a chaotic 20,000-member

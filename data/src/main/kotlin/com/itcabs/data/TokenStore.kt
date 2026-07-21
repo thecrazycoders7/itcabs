@@ -1,11 +1,12 @@
 package com.itcabs.data
 
-import com.itcabs.core.network.TokenProvider
+import com.itcabs.core.network.TokenSession
 
-/** Stores auth tokens and feeds the access token to the network layer's Authorization header. */
-interface TokenStore : TokenProvider {
-    fun save(access: String, refresh: String)
-    fun refreshToken(): String?
+/**
+ * Stores auth tokens: feeds the access token to the Authorization header (via TokenProvider),
+ * supplies the refresh token + accepts refreshed tokens (via TokenSession, for auto-refresh on 401).
+ */
+interface TokenStore : TokenSession {
     fun clear()
 }
 

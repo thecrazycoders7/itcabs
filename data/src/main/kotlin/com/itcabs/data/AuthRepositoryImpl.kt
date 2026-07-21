@@ -38,4 +38,6 @@ class AuthRepositoryImpl(
 
     override suspend fun currentUser(): AppResult<User> =
         api.me().asResult { it.toDomain() }
+
+    override suspend fun signOut() = tokens.clear()
 }

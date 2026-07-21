@@ -1,0 +1,53 @@
+package com.itcabs
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.UserRole
+import com.itcabs.domain.repository.AuthRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/** Top-level app state: are we signed in, and as which role? Decides the start screen. */
+sealed interface RootState {
+    data object Loading : RootState
+    data object SignedOut : RootState
+    data class SignedIn(val role: UserRole) : RootState
+}
+
+@HiltViewModel
+class RootViewModel @Inject constructor(
+    private val auth: AuthRepository,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow<RootState>(RootState.Loading)
+    val state: StateFlow<RootState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch { _state.value = resolve() }
+    }
+
+    /**
+     * Try /auth/me with the persisted access token. If it's expired (401) but a refresh token
+     * exists, refresh once and retry — so a returning user stays signed in past the 15-min
+     * access-token lifetime. (Full auto-refresh on any 401 is a separate follow-up.)
+     */
+    private suspend fun resolve(): RootState {
+        (auth.currentUser() as? AppResult.Ok)?.let { return RootState.SignedIn(it.value.role) }
+        if (auth.refresh() is AppResult.Ok) {
+            (auth.currentUser() as? AppResult.Ok)?.let { return RootState.SignedIn(it.value.role) }
+        }
+        return RootState.SignedOut
+    }
+
+    fun onSignedIn(role: UserRole) { _state.value = RootState.SignedIn(role) }
+
+    fun signOut() = viewModelScope.launch {
+        auth.signOut()
+        _state.value = RootState.SignedOut
+    }
+}

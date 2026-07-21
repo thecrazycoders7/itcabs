@@ -19,15 +19,24 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.2"
+        // Debug default: emulator → host loopback for the local dev backend.
+        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8081/\"")
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            // Point release builds at the hosted backend before shipping (see docs/DEPLOY.md).
+            buildConfigField("String", "BASE_URL", "\"https://REPLACE-WITH-HOSTED-URL/\"")
+        }
     }
 }
 
