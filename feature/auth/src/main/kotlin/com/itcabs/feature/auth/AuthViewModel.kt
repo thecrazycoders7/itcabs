@@ -23,6 +23,9 @@ data class AuthUiState(
     val loading: Boolean = false,
     val error: String? = null,
     val signedIn: Boolean = false,
+    // The authoritative role from the backend (a returning user's role may differ from the
+    // one picked in the form). Non-null once signedIn; drives role-based home routing.
+    val signedInRole: UserRole? = null,
 ) {
     enum class Step { Phone, Code }
 }
@@ -50,7 +53,9 @@ class AuthViewModel @Inject constructor(
     fun verify() = launchLoading {
         val s = _state.value
         when (val result = auth.verifyOtp(s.phone, s.code, s.role, s.name.ifBlank { null })) {
-            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true) }
+            is AppResult.Ok -> _state.update {
+                it.copy(loading = false, signedIn = true, signedInRole = result.value.role)
+            }
             is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
         }
     }

@@ -14,15 +14,16 @@ import retrofit2.Retrofit
 object NetworkFactory {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun authApi(baseUrl: String, tokenProvider: TokenProvider, debug: Boolean = false): AuthApi =
-        retrofit(baseUrl, tokenProvider, debug).create(AuthApi::class.java)
+    fun authApi(baseUrl: String, session: TokenSession, debug: Boolean = false): AuthApi =
+        retrofit(baseUrl, session, debug).create(AuthApi::class.java)
 
-    fun dispatchApi(baseUrl: String, tokenProvider: TokenProvider, debug: Boolean = false): DispatchApi =
-        retrofit(baseUrl, tokenProvider, debug).create(DispatchApi::class.java)
+    fun dispatchApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DispatchApi =
+        retrofit(baseUrl, session, debug).create(DispatchApi::class.java)
 
-    private fun retrofit(baseUrl: String, tokenProvider: TokenProvider, debug: Boolean): Retrofit {
+    private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
-            .addInterceptor(AuthInterceptor(tokenProvider))
+            .addInterceptor(AuthInterceptor(session))
+            .authenticator(TokenAuthenticator(baseUrl, session, json))
             .apply {
                 if (debug) addInterceptor(
                     HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY },

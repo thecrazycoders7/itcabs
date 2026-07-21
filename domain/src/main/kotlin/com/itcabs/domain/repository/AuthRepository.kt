@@ -19,4 +19,7 @@ interface AuthRepository {
     suspend fun refresh(): AppResult<Unit>
 
     suspend fun currentUser(): AppResult<User>
+
+    /** Clears stored tokens (local sign-out). */
+    suspend fun signOut()
 }

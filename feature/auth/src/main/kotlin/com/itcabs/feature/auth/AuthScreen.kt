@@ -52,13 +52,13 @@ import com.itcabs.domain.model.UserRole
  */
 @Composable
 fun AuthScreen(
-    onSignedIn: () -> Unit,
+    onSignedIn: (com.itcabs.domain.model.UserRole) -> Unit,
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(state.signedIn) {
-        if (state.signedIn) onSignedIn()
+        if (state.signedIn) state.signedInRole?.let(onSignedIn)
     }
 
     Column(
