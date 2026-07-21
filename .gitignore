@@ -1,0 +1,21 @@
+# Gradle / build (unanchored so every module's build dir is covered)
+.gradle/
+build/
+.kotlin/
+
+# Android
+/local.properties
+*.apk
+*.aab
+.externalNativeBuild
+.cxx
+/captures
+
+# IDE / editor
+*.iml
+/.idea/
+/.vscode/
+.DS_Store
+
+# Firebase config — provide per developer, do not commit.
+/app/google-services.json

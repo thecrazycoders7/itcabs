@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>itcabs · prototype</title>
+<style>
+  :root {
+    --bg:#0f1115; --card:#1a1e26; --line:#2a303c; --fg:#e8eaed; --mut:#9aa4b2;
+    --pri:#4f8cff; --open:#4f8cff; --claimed:#f0a020; --confirmed:#22b07d; --done:#6b7280; --err:#ff5c5c;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  header .tag { color:var(--mut); font-size:12px; }
+  .stage { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; min-height:calc(100vh - 51px); }
+  .pane { border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  .pane:last-child { border-right:0; }
+  .pane h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:var(--mut); margin:0; padding:12px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;}
+  .body { padding:12px 14px; overflow:auto; flex:1; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .route { font-weight:600; }
+  .meta { color:var(--mut); font-size:12px; margin-top:2px; }
+  .fare { font-size:16px; font-weight:700; margin-top:6px; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row > * { min-width:0; }
+  input, select { width:100%; background:#11141b; border:1px solid var(--line); color:var(--fg); border-radius:8px; padding:8px; font:inherit; }
+  label { font-size:11px; color:var(--mut); display:block; margin:8px 0 3px; }
+  button { background:var(--pri); color:#fff; border:0; border-radius:8px; padding:8px 12px; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
+  button.sm { padding:5px 10px; font-size:12px; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .chip { font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.5px; }
+  .chip.OPEN{ background:rgba(79,140,255,.15); color:var(--open);} .chip.CLAIMED{ background:rgba(240,160,32,.15); color:var(--claimed);}
+  .chip.CONFIRMED{ background:rgba(34,176,125,.15); color:var(--confirmed);} .chip.COMPLETED{ background:rgba(107,114,128,.2); color:var(--done);}
+  .between { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .legrow { border-top:1px dashed var(--line); margin-top:8px; padding-top:8px; }
+  .empty { color:var(--mut); text-align:center; padding:24px 0; font-size:13px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#000; border:1px solid var(--line); padding:8px 14px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .who { font-size:11px; color:var(--mut); }
+  .flag { color:var(--err); cursor:pointer; font-size:12px; }
+  .verifybar { background:rgba(240,160,32,.1); border:1px solid var(--claimed); color:var(--claimed); font-size:12px; padding:8px 10px; border-radius:8px; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>itcabs</h1>
+  <span class="tag">realtime · SSE · server-authoritative first-claim-wins</span>
+</header>
+
+<div class="stage">
+  <!-- COORDINATOR -->
+  <div class="pane">
+    <h2>Coordinator <span class="who">Priya · TransCab</span></h2>
+    <div class="body">
+      <div class="card">
+        <div class="route">New requirement</div>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1"><label>Office / hub</label><input id="office" value="Cyber Towers"></div>
+          <div style="flex:1"><label>Shift</label><input id="shift" value="Login 09:00"></div>
+        </div>
+        <div id="legForms"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="ghost sm" onclick="addLegForm()">+ Add leg</button>
+          <button class="sm" style="margin-left:auto" onclick="postJob()">Post job</button>
+        </div>
+      </div>
+      <h2 style="border:0;padding:8px 0 4px">My dashboard</h2>
+      <div id="dashboard"></div>
+    </div>
+  </div>
+
+  <!-- DRIVER A -->
+  <div class="pane">
+    <h2>Driver A <span class="who" id="whoA">Ravi · Sedan</span></h2>
+    <div class="body" id="driverA"></div>
+  </div>
+
+  <!-- DRIVER B -->
+  <div class="pane">
+    <h2>Driver B <span class="who" id="whoB">Imran · SUV</span></h2>
+    <div class="body" id="driverB"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- state comes from the server over SSE (mirrors Firestore listeners) ----
+const STATUS = { OPEN:'OPEN', CLAIMED:'CLAIMED', CONFIRMED:'CONFIRMED', COMPLETED:'COMPLETED' };
+let drivers = {};   // populated by /events
+let jobs = [];
+
+addLegForm(); // start with one leg form
+
+async function api(path, payload){
+  const r = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  if (!r.ok){ const e = await r.json().catch(()=>({})); return e.error || 'error'; }
+  return null; // server broadcasts new state; no local mutation
+}
+
+// ---- coordinator: build legs + post ----
+function addLegForm(){
+  const i = document.querySelectorAll('.legForm').length + 1;
+  const el = document.createElement('div');
+  el.className = 'legForm legrow';
+  el.innerHTML = `
+    <div class="between"><b style="font-size:12px">Leg ${i}</b>
+      <span class="flag" onclick="this.closest('.legForm').remove()">remove</span></div>
+    <div class="row"><div style="flex:1"><label>Pickup</label><input class="pk" value="Kondapur"></div>
+      <div style="flex:1"><label>Drop</label><input class="dp" value="Cyber Towers"></div></div>
+    <div class="row"><div style="flex:1"><label>Vehicle</label>
+      <select class="vh"><option>Sedan</option><option>SUV</option><option>Tempo</option></select></div>
+      <div style="flex:1"><label>Fare ₹</label><input class="fr" value="${380 + i*20}"></div>
+      <div style="width:64px"><label>Seats</label><input class="st" value="4"></div></div>`;
+  document.getElementById('legForms').appendChild(el);
+}
+
+async function postJob(){
+  const office = document.getElementById('office').value.trim();
+  const shift = document.getElementById('shift').value.trim();
+  const legs = [...document.querySelectorAll('.legForm')].map(f => ({
+    pickup: f.querySelector('.pk').value, drop: f.querySelector('.dp').value,
+    vehicle: f.querySelector('.vh').value, fare: +f.querySelector('.fr').value, seats: +f.querySelector('.st').value,
+  }));
+  if (!office || !shift || !legs.length) return toast('Fill office, shift, at least one leg');
+  const err = await api('/post', { office, shift, legs });
+  if (err) return toast(err);
+  document.getElementById('legForms').innerHTML=''; addLegForm();
+  toast(`Posted ${legs.length} leg(s)`);
+}
+
+// ---- first-claim-wins is enforced by the server; client just calls + reports ----
+async function claim(legId, who){
+  const err = await api('/claim', { legId, who });
+  toast(err ? err : `${drivers[who]?.name || who} claimed leg — locked`);
+}
+async function advance(legId, status){ await api('/advance', { legId, status }); }
+
+// ---- render all three panes off the same store (mirrors live sync) ----
+function render(){
+  renderDashboard();
+  renderDriver('A'); renderDriver('B');
+}
+function renderDashboard(){
+  const el = document.getElementById('dashboard');
+  if (!jobs.length) return el.innerHTML = '<div class="empty">No requirements yet.</div>';
+  el.innerHTML = jobs.map(j => `
+    <div class="card">
+      <div class="between"><div class="route">${j.office}</div><span class="meta">${j.shift}</span></div>
+      ${j.legs.map(l => `
+        <div class="legrow between">
+          <div><div>${l.pickup} → ${l.drop}</div>
+            <div class="meta">${l.vehicle} · ₹${l.fare} · ${l.seats} seats
+              ${l.claimedBy ? '· '+drivers[l.claimedBy].name : ''}</div></div>
+          <div style="text-align:right">
+            <span class="chip ${l.status}">${l.status}</span><br>
+            ${dashAction(l)}
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+function dashAction(l){
+  if (l.status===STATUS.CLAIMED)   return `<button class="ghost sm" style="margin-top:5px" onclick="advance(${l.id},'CONFIRMED')">Confirm</button>`;
+  if (l.status===STATUS.CONFIRMED) return `<button class="ghost sm" style="margin-top:5px" onclick="advance(${l.id},'COMPLETED')">Complete</button>`;
+  if (l.status===STATUS.COMPLETED) return `<span class="meta">★ rate</span>`;
+  return '';
+}
+function renderDriver(who){
+  const el = document.getElementById('driver'+who);
+  const d = drivers[who];
+  let html = '';
+  if (!d.verified) html += `<div class="verifybar">Verification pending — a supervisor must verify your KYC before you can claim. Jobs shown for demo.</div>`;
+  const open = [];
+  jobs.forEach(j => j.legs.forEach(l => { if (l.status===STATUS.OPEN && matches(l,d)) open.push({j,l}); }));
+  const mine = [];
+  jobs.forEach(j => j.legs.forEach(l => { if (l.claimedBy===who) mine.push({j,l}); }));
+
+  html += `<h2 style="border:0;padding:6px 0">Open legs (${open.length})</h2>`;
+  html += open.length ? open.map(({j,l}) => card(j,l,
+    `<button class="sm" onclick="claim(${l.id},'${who}')" ${d.verified?'':'disabled'}>Claim ₹${l.fare}</button>`)).join('')
+    : `<div class="empty">Nothing open for ${d.vehicle}.</div>`;
+
+  if (mine.length){
+    html += `<h2 style="border:0;padding:10px 0 6px">My trips</h2>`;
+    html += mine.map(({j,l}) => card(j,l,`<span class="chip ${l.status}">${l.status}</span>`)).join('');
+  }
+  el.innerHTML = html;
+}
+function matches(l,d){ return true; } // vehicle filter off for demo; drivers see all open
+function card(j,l,trailing){
+  return `<div class="card"><div class="between">
+      <div><div class="route">${l.pickup} → ${l.drop}</div>
+        <div class="meta">${j.office} · ${j.shift} · ${l.vehicle}</div>
+        <div class="fare">₹${l.fare}</div></div>
+      <div>${trailing}</div></div></div>`;
+}
+
+let toastT;
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1800); }
+
+// ---- realtime: server pushes full state on connect and on every change ----
+const es = new EventSource('/events');
+es.onmessage = e => { const s = JSON.parse(e.data); drivers = s.drivers; jobs = s.jobs; render(); };
+es.onerror = () => toast('Disconnected — retrying…');
+</script>
+</body>
+</html>

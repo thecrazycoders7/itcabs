@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: itcabs-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/itcabs}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+itcabs:
+  jwt:
+    # Dev secret only. In staging/prod inject a strong secret via env (ADR-0010).
+    secret: ${JWT_SECRET:dev-secret-change-me-dev-secret-change-me-32b}
+    access-ttl-minutes: 15
+    refresh-ttl-days: 30
+  otp:
+    ttl-seconds: 300
+    # Dev: OTP is logged, not sent by SMS. Wire a gateway (MSG91) in M3.
+    dev-log-code: true
+
+springdoc:
+  swagger-ui:
+    path: /docs
