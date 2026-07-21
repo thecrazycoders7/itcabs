@@ -198,11 +198,24 @@ links end-to-end.
   UI or hit the backend from the device. Running needs an emulator or a physical device +
   the backend reachable at `10.0.2.2:8081` (emulator→host loopback).
 
+**M2 slice 6 — DONE + APK rebuilt (dispatch feature).** `:feature:dispatch` (Android lib):
+- `DriverFeedViewModel`/`DriverFeedScreen` — browse open legs + **Claim Trip**; on a 409 the
+  VM shows "Trip already taken" and refreshes the feed (first-claim-wins surfaced in UI).
+  Styled to `driver_home_screen` (fare, pickup→drop timeline, status chip, per-card claim).
+- `CreateJobViewModel`/`CreateJobScreen` — coordinator posts a job with **dynamic pickup legs**
+  (add/remove, pickup/drop/seats/fare-in-rupees→paise), styled to `create_job_screen`.
+- Wired into `:app` nav: `home` is a manual role hub → `feed` / `create`. Full Hilt graph
+  re-validated (both `@HiltViewModel`s inject `DispatchRepository`); `:app:assembleDebug`
+  green, APK rebuilt. **7 modules total.** Still compile-only (no emulator).
+
 **Next M2 slices (not started):** encrypted-DataStore `TokenStore` (replace `InMemoryTokenStore`),
-`POST /auth/refresh` auto-retry on 401 (an OkHttp `Authenticator`), a dispatch `:feature:*`
-(driver feed + claim, coordinator post-job — styled to `driver_home_screen`/`create_job_screen`),
-role-based home routing off `/auth/me`, and Room in `:data` as the offline cache (turns
-`:data` into an Android library). None need new domain logic — that's all done.
+`POST /auth/refresh` auto-retry on 401 (an OkHttp `Authenticator`), role-based home routing off
+`/auth/me` (replace the manual hub), driver "my claimed trips" + coordinator dashboard/status
+screens (designs: `claimed_trip_screen`, `coordinator_dashboard`, `job_details`, `rating_screen`),
+and Room in `:data` as the offline cache. None need new domain logic — that's all done.
+
+Git is now live at github.com/thecrazycoders7/itcabs (initial commit pushed). Work on branches
+from here; this dispatch slice is uncommitted on the working tree.
 
 **Build-env facts (set up this session, needed to build M2):**
 - Android SDK installed at `/opt/homebrew/share/android-commandlinetools`
