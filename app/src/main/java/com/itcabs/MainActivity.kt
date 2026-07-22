@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.itcabs.core.designsystem.ItCabsTheme
 import com.itcabs.domain.model.UserRole
 import com.itcabs.feature.auth.AuthScreen
+import com.itcabs.feature.auth.ProfileScreen
 import com.itcabs.feature.dispatch.CoordinatorHomeScreen
 import com.itcabs.feature.dispatch.DriverFeedScreen
 import com.itcabs.feature.dispatch.MyTripsScreen
@@ -79,10 +81,15 @@ private fun RoleHome(role: UserRole, onSignOut: () -> Unit) {
 @Composable
 private fun DriverHome(onSignOut: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
+    val title = when (tab) {
+        0 -> "Available Trips"
+        1 -> "My Trips"
+        else -> "Profile"
+    }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (tab == 0) "Available Trips" else "My Trips") },
+                title = { Text(title) },
                 actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
             )
         },
@@ -100,13 +107,20 @@ private fun DriverHome(onSignOut: () -> Unit) {
                     icon = { Icon(Icons.Filled.DirectionsCar, contentDescription = null) },
                     label = { Text("My Trips") },
                 )
+                NavigationBarItem(
+                    selected = tab == 2,
+                    onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                    label = { Text("Profile") },
+                )
             }
         },
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (tab) {
                 0 -> DriverFeedScreen()
-                else -> MyTripsScreen()
+                1 -> MyTripsScreen()
+                else -> ProfileScreen(onSignOut = onSignOut)
             }
         }
     }
