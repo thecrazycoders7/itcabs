@@ -39,6 +39,9 @@ class CoordinatorHomeViewModel @Inject constructor(
                 }
             }
         }
+        // Realtime (ADR-0008): a driver claiming/updating a leg pushes an event → re-fetch, so the
+        // dashboard flips OPEN→CLAIMED live without a manual Refresh.
+        viewModelScope.launch { dispatch.legEvents().collect { refresh() } }
         refresh()
     }
 

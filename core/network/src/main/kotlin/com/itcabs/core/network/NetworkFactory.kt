@@ -23,6 +23,14 @@ object NetworkFactory {
     fun driverApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DriverApi =
         retrofit(baseUrl, session, debug).create(DriverApi::class.java)
 
+    /** Realtime leg events (ADR-0008). Own OkHttp client with a ping keepalive for the long-lived socket. */
+    fun realtimeClient(baseUrl: String, session: TokenSession): RealtimeClient {
+        val client = OkHttpClient.Builder()
+            .pingInterval(20, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        return RealtimeClient(baseUrl, session, client)
+    }
+
     private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
             .addInterceptor(ConnectivityInterceptor()) // outermost: turn connection failures into a 503 result, not a crash

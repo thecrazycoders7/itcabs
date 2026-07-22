@@ -4,6 +4,7 @@ import com.itcabs.core.database.LegDao
 import com.itcabs.core.database.toDomain
 import com.itcabs.core.database.toEntity
 import com.itcabs.core.network.DispatchApi
+import com.itcabs.core.network.RealtimeClient
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StatusUpdateDto
@@ -14,11 +15,16 @@ import com.itcabs.domain.model.NewJob
 import com.itcabs.domain.repository.DispatchRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 class DispatchRepositoryImpl(
     private val api: DispatchApi,
     private val dao: LegDao,
+    private val realtime: RealtimeClient,
 ) : DispatchRepository {
+
+    override fun legEvents(): Flow<Unit> =
+        realtime.events.onStart { realtime.ensureConnected() }
 
     override fun getMyLegsFlow(userId: Long): Flow<List<Leg>> =
         dao.getMyLegsFlow(userId).map { entities -> entities.map { it.toDomain() } }

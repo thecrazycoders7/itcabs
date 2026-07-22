@@ -4,6 +4,7 @@ import com.itcabs.core.network.AuthApi
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.NetworkFactory
+import com.itcabs.core.network.RealtimeClient
 import android.content.Context
 import com.itcabs.BuildConfig
 import com.itcabs.PersistentTokenStore
@@ -65,6 +66,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun dispatchRepository(api: DispatchApi, dao: LegDao): DispatchRepository =
-        DispatchRepositoryImpl(api, dao)
+    fun realtimeClient(tokenStore: TokenStore): RealtimeClient =
+        NetworkFactory.realtimeClient(BuildConfig.BASE_URL, tokenStore)
+
+    @Provides
+    @Singleton
+    fun dispatchRepository(api: DispatchApi, dao: LegDao, realtime: RealtimeClient): DispatchRepository =
+        DispatchRepositoryImpl(api, dao, realtime)
 }

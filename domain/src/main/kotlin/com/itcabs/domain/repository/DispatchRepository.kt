@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
  * that's the core first-claim-wins invariant surfaced to the UI.
  */
 interface DispatchRepository {
+    /** Realtime signal (ADR-0008): emits when any leg changed server-side; collect and re-fetch. */
+    fun legEvents(): Flow<Unit>
+
     // coordinator
     fun getMyLegsFlow(userId: Long): Flow<List<Leg>>
     suspend fun postJob(job: NewJob): AppResult<List<Leg>>
