@@ -25,6 +25,7 @@ object NetworkFactory {
 
     private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
+            .addInterceptor(ConnectivityInterceptor()) // outermost: turn connection failures into a 503 result, not a crash
             .addInterceptor(AuthInterceptor(session))
             .authenticator(TokenAuthenticator(baseUrl, session, json))
             .apply {
