@@ -66,6 +66,7 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onCreateJob = { showCreate = true },
         onConfirm = { viewModel.setStatus(it, LegStatus.CONFIRMED) },
         onComplete = { viewModel.setStatus(it, LegStatus.COMPLETED) },
+        onCancel = { viewModel.setStatus(it, LegStatus.CANCELLED) },
         onRateClick = { ratingLegId = it }
     )
 
@@ -87,6 +88,7 @@ fun CoordinatorHomeContent(
     onCreateJob: () -> Unit = {},
     onConfirm: (Long) -> Unit = {},
     onComplete: (Long) -> Unit = {},
+    onCancel: (Long) -> Unit = {},
     onRateClick: (Long) -> Unit = {},
 ) {
     Column(
@@ -138,6 +140,7 @@ fun CoordinatorHomeContent(
                         leg = leg,
                         onConfirm = { onConfirm(leg.id) },
                         onComplete = { onComplete(leg.id) },
+                        onCancel = { onCancel(leg.id) },
                         onRate = { onRateClick(leg.id) }
                     )
                 }
@@ -173,6 +176,7 @@ private fun CoordinatorLegCard(
     leg: Leg,
     onConfirm: () -> Unit,
     onComplete: () -> Unit,
+    onCancel: () -> Unit,
     onRate: () -> Unit,
 ) {
     Column(
@@ -204,9 +208,22 @@ private fun CoordinatorLegCard(
             )
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             when (leg.status) {
+                // OPEN or CLAIMED can still be called off; a Cancel sits next to the primary action.
+                LegStatus.OPEN -> {
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel Job", color = MaterialTheme.colorScheme.error)
+                    }
+                }
                 LegStatus.CLAIMED -> {
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.error)
+                    }
                     Button(onClick = onConfirm, shape = MaterialTheme.shapes.small) {
                         Text("Confirm Driver")
                     }
