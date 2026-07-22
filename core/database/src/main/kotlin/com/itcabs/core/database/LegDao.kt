@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LegDao {
-    @Query("SELECT * FROM legs ORDER BY id DESC")
+    // Feed shows only claimable legs — the cache also holds CLAIMED/COMPLETED legs from
+    // myClaims()/claim(), which must not resurface in "Available".
+    @Query("SELECT * FROM legs WHERE status = 'OPEN' ORDER BY id DESC")
     fun getLegsFlow(): Flow<List<LegEntity>>
 
     @Query("SELECT * FROM legs WHERE coordinatorId = :userId ORDER BY id DESC")
