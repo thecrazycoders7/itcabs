@@ -12,6 +12,7 @@ fun conflict(msg: String) = ApiException(HttpStatus.CONFLICT, msg)
 fun unauthorized(msg: String = "unauthorized") = ApiException(HttpStatus.UNAUTHORIZED, msg)
 fun badRequest(msg: String) = ApiException(HttpStatus.BAD_REQUEST, msg)
 fun forbidden(msg: String) = ApiException(HttpStatus.FORBIDDEN, msg)
+fun tooManyRequests(msg: String) = ApiException(HttpStatus.TOO_MANY_REQUESTS, msg)
 fun notFound(msg: String) = ApiException(HttpStatus.NOT_FOUND, msg)
 
 @RestControllerAdvice

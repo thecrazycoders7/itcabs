@@ -17,6 +17,9 @@ itcabs:
     refresh-ttl-days: 30
   otp:
     ttl-seconds: 300
+    # Rate limit: at most max-per-window OTP requests per phone per window-seconds.
+    max-per-window: 5
+    window-seconds: 600
     # Provider: 'dev' logs the code (no SMS); 'msg91' sends via MSG91 Flow.
     provider: ${OTP_PROVIDER:dev}
     # Dev only: OTP is logged, not sent by SMS. Set false in prod.

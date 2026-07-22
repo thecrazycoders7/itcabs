@@ -1,6 +1,7 @@
 package com.itcabs.identity
 
 import com.itcabs.shared.badRequest
+import com.itcabs.shared.tooManyRequests
 import com.itcabs.shared.unauthorized
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
@@ -20,12 +21,24 @@ class IdentityService(
     private val otp: OtpSender,
     @Value("\${itcabs.otp.ttl-seconds}") private val otpTtlSeconds: Long,
     @Value("\${itcabs.jwt.refresh-ttl-days}") private val refreshTtlDays: Long,
+    @Value("\${itcabs.otp.max-per-window:5}") private val otpMaxPerWindow: Int,
+    @Value("\${itcabs.otp.window-seconds:600}") private val otpWindowSeconds: Long,
 ) {
     private val rng = SecureRandom()
 
     /** Creates a one-time code. Dev: logs it; prod: an SMS gateway sends it (M3). */
     fun requestOtp(phone: String) {
         require(phone.isNotBlank()) { throw badRequest("phone required") }
+        // Rate limit: cap OTP requests per phone per window so the endpoint can't be hammered
+        // (SMS cost / brute-force setup). Counts recent challenge rows — no extra table.
+        val recent = db.queryForObject(
+            "SELECT count(*) FROM otp_challenges WHERE phone = :p AND created_at > :since",
+            MapSqlParameterSource()
+                .addValue("p", phone)
+                .addValue("since", java.sql.Timestamp.from(Instant.now().minusSeconds(otpWindowSeconds))),
+            Int::class.java,
+        ) ?: 0
+        if (recent >= otpMaxPerWindow) throw tooManyRequests("too many OTP requests; try again later")
         val code = "%06d".format(rng.nextInt(1_000_000))
         db.update(
             "INSERT INTO otp_challenges(phone, code_hash, expires_at) VALUES (:p, :h, :e)",
@@ -85,6 +98,7 @@ class IdentityService(
      * Exchanges a valid, unrevoked, unexpired refresh token for a fresh access token.
      * The refresh token itself is opaque and tracked in device_sessions (ADR-0005).
      */
+    @Transactional
     fun refresh(refreshToken: String): Tokens {
         require(refreshToken.isNotBlank()) { throw badRequest("refreshToken required") }
         val row = db.queryForList(
@@ -101,9 +115,19 @@ class IdentityService(
 
         val userId = (row["user_id"] as Number).toLong()
         val role = row["role"] as String
-        // ponytail: no refresh-token rotation for M1; same token reused until revoked/expired.
-        // Add rotation (issue new refresh, revoke old) when the threat model needs theft detection.
-        return Tokens(jwt.issueAccess(userId, role), refreshToken, userId, role)
+        // Rotation (ADR-0005): revoke the presented token and issue a fresh one. A stolen/replayed
+        // old token then fails ("invalid refresh token"), giving theft detection. Clients already
+        // persist the returned refresh token, so the swap is transparent.
+        db.update(
+            "UPDATE device_sessions SET revoked_at = now() WHERE refresh_token_hash = :h",
+            MapSqlParameterSource("h", sha256(refreshToken)),
+        )
+        val newRefresh = randomToken()
+        db.update(
+            "INSERT INTO device_sessions(user_id, refresh_token_hash) VALUES (:u, :h)",
+            MapSqlParameterSource().addValue("u", userId).addValue("h", sha256(newRefresh)),
+        )
+        return Tokens(jwt.issueAccess(userId, role), newRefresh, userId, role)
     }
 
     private fun randomToken(): String {
