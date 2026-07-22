@@ -59,8 +59,11 @@ class AuthViewModel @Inject constructor(
     fun onRcNumberChange(v: String) = _state.update { it.copy(rcNumber = v) }
     fun onPhotoUrlChange(v: String) = _state.update { it.copy(photoUrl = v) }
 
+    /** E.164 form the backend expects; the field holds the 10 national digits, "+91" is the shown prefix. */
+    private fun e164Phone(): String = "+91" + _state.value.phone
+
     fun requestOtp() = launchLoading {
-        when (val result = auth.requestOtp(_state.value.phone)) {
+        when (val result = auth.requestOtp(e164Phone())) {
             is AppResult.Ok -> _state.update { it.copy(loading = false, step = AuthUiState.Step.Code) }
             is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
         }
@@ -68,7 +71,7 @@ class AuthViewModel @Inject constructor(
 
     fun verify() = launchLoading {
         val s = _state.value
-        when (val result = auth.verifyOtp(s.phone, s.code, s.role, s.name.ifBlank { null })) {
+        when (val result = auth.verifyOtp(e164Phone(), s.code, s.role, s.name.ifBlank { null })) {
             is AppResult.Ok -> {
                 // If it's a new driver, go to KYC.
                 // ponytail: backend /auth/me or verify response could signal "kyc needed".
