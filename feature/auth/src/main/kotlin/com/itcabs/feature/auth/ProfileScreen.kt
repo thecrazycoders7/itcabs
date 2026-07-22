@@ -23,9 +23,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.itcabs.domain.model.KycStatus
 
 @Composable
 fun ProfileScreen(
@@ -33,6 +35,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val user by viewModel.user.collectAsState()
+    val kyc by viewModel.kyc.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
@@ -69,10 +72,32 @@ fun ProfileScreen(
             InfoRow("Account", user?.status?.name ?: "—")
         }
 
+        kyc?.takeIf { it != KycStatus.NONE }?.let { KycBanner(it) }
+
         OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
             Text("  Sign out")
         }
+    }
+}
+
+/** Verification status banner — tells a driver whether they can claim trips, and why not. */
+@Composable
+private fun KycBanner(status: KycStatus) {
+    val (bg, fg, text) = when (status) {
+        KycStatus.VERIFIED -> Triple(Color(0xFFD7F0DE), Color(0xFF0F5C2E), "Verified — you can claim trips")
+        KycStatus.PENDING -> Triple(Color(0xFFFDECC8), Color(0xFF7A5200), "Verification pending — you can't claim trips yet")
+        KycStatus.REJECTED -> Triple(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer, "Verification rejected — please re-submit KYC")
+        KycStatus.NONE -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Complete KYC to start claiming trips")
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(bg)
+            .padding(16.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = fg, fontWeight = FontWeight.SemiBold)
     }
 }
 

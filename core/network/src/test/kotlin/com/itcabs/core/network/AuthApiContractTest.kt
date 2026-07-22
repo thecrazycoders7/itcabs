@@ -22,5 +22,6 @@ class AuthApiContractTest {
             .build()
         retrofit.create(AuthApi::class.java)
         retrofit.create(DispatchApi::class.java)
+        retrofit.create(DriverApi::class.java)
     }
 }

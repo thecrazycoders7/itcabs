@@ -38,6 +38,21 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
         return mapOf("kycStatus" to "PENDING")
     }
 
+    /** The authenticated driver's own KYC status + vehicle. kycStatus is NONE if no profile yet. */
+    @GetMapping("/driver/me")
+    fun myProfile(req: HttpServletRequest): Map<String, Any?> {
+        val uid = requireUserId(req)
+        val row = db.queryForList(
+            "SELECT vehicle_type, vehicle_reg, kyc_status FROM driver_profiles WHERE user_id = :u",
+            MapSqlParameterSource("u", uid),
+        ).firstOrNull()
+        return mapOf(
+            "kycStatus" to (row?.get("kyc_status") ?: "NONE"),
+            "vehicleType" to row?.get("vehicle_type"),
+            "vehicleReg" to row?.get("vehicle_reg"),
+        )
+    }
+
     // Admin-only (is_admin flag). Stands in for the admin-console verification action.
     @PostMapping("/admin/drivers/{id}/verify")
     fun verify(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
