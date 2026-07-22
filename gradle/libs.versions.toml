@@ -12,6 +12,7 @@ navigationCompose = "2.8.1"
 hiltNavigationCompose = "1.2.0"
 lifecycle = "2.8.6"
 room = "2.6.1"
+securityCrypto = "1.1.0-alpha06"
 composeBom = "2024.09.03"
 
 # Network
@@ -40,6 +41,7 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 # Hilt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
