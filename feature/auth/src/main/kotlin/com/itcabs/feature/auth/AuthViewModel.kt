@@ -3,6 +3,7 @@ package com.itcabs.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.KycStatus
 import com.itcabs.domain.model.UserRole
 import com.itcabs.domain.repository.AuthRepository
 import com.itcabs.domain.repository.DriverRepository
@@ -73,13 +74,15 @@ class AuthViewModel @Inject constructor(
         val s = _state.value
         when (val result = auth.verifyOtp(e164Phone(), s.code, s.role, s.name.ifBlank { null })) {
             is AppResult.Ok -> {
-                // If it's a new driver, go to KYC.
-                // ponytail: backend /auth/me or verify response could signal "kyc needed".
-                // For now, if role is DRIVER and it's a "new" verification (role was passed), go to KYC.
-                if (result.value.role == UserRole.DRIVER) {
-                    _state.update { it.copy(loading = false, step = AuthUiState.Step.Kyc, signedInRole = result.value.role) }
+                val role = result.value.role
+                // A driver still needs KYC unless the backend already has them VERIFIED — otherwise a
+                // returning, already-verified driver would be forced through the KYC form every login.
+                val needsKyc = role == UserRole.DRIVER &&
+                    (driver.myProfile() as? AppResult.Ok)?.value?.kycStatus != KycStatus.VERIFIED
+                if (needsKyc) {
+                    _state.update { it.copy(loading = false, step = AuthUiState.Step.Kyc, signedInRole = role) }
                 } else {
-                    _state.update { it.copy(loading = false, signedIn = true, signedInRole = result.value.role) }
+                    _state.update { it.copy(loading = false, signedIn = true, signedInRole = role) }
                 }
             }
             is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }

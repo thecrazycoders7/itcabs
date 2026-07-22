@@ -59,8 +59,11 @@ class RootViewModel @Inject constructor(
 
     fun onSignedIn(role: UserRole) { _state.value = RootState.SignedIn(role) }
 
-    fun signOut() = viewModelScope.launch {
-        auth.signOut()
+    fun signOut() {
+        // Transition to signed-out immediately: local cleanup (token wipe + Room clear) must never
+        // block the UI. Doing it after auth.signOut() meant a slow/stuck cleanup left the user
+        // stranded on their home screen. Cleanup now runs best-effort in the background.
         _state.value = RootState.SignedOut
+        viewModelScope.launch { runCatching { auth.signOut() } }
     }
 }
