@@ -1,6 +1,7 @@
 package com.itcabs.identity
 
 import com.itcabs.shared.badRequest
+import com.itcabs.shared.forbidden
 import com.itcabs.shared.tooManyRequests
 import com.itcabs.shared.unauthorized
 import org.springframework.beans.factory.annotation.Value
@@ -69,8 +70,12 @@ class IdentityService(
         db.update("UPDATE otp_challenges SET consumed_at = now() WHERE id = :id",
             MapSqlParameterSource("id", row["id"]))
 
-        val user = db.queryForList("SELECT id, role FROM users WHERE phone = :p",
+        val user = db.queryForList("SELECT id, role, status FROM users WHERE phone = :p",
             MapSqlParameterSource("p", phone)).firstOrNull()
+
+        // Blocked identity can't sign in OR re-register: the row persists as BLOCKED, so a fresh
+        // OTP attempt on the same phone lands here and is rejected (M4 trust & safety).
+        if (user != null && user["status"] == "BLOCKED") throw forbidden("account blocked")
 
         val (userId, resolvedRole) = if (user != null) {
             (user["id"] as Number).toLong() to user["role"] as String

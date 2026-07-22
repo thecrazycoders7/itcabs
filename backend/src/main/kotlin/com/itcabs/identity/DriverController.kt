@@ -63,4 +63,26 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
         )
         return mapOf("kycStatus" to "VERIFIED")
     }
+
+    /** Admin: block a user (trust & safety, M4). Blocked users can't sign in or re-register. */
+    @PostMapping("/admin/users/{id}/block")
+    fun block(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> = setBlocked(req, id, true)
+
+    @PostMapping("/admin/users/{id}/unblock")
+    fun unblock(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> = setBlocked(req, id, false)
+
+    private fun setBlocked(req: HttpServletRequest, id: Long, blocked: Boolean): Map<String, Any> {
+        requireAdmin(req, db)
+        val status = if (blocked) "BLOCKED" else "ACTIVE"
+        db.update(
+            "UPDATE users SET status=:s WHERE id=:id",
+            MapSqlParameterSource().addValue("s", status).addValue("id", id),
+        )
+        // Revoke refresh sessions so a blocked user can't renew; their access token still expires in ≤15m.
+        if (blocked) db.update(
+            "UPDATE device_sessions SET revoked_at=now() WHERE user_id=:id AND revoked_at IS NULL",
+            MapSqlParameterSource("id", id),
+        )
+        return mapOf("status" to status)
+    }
 }
