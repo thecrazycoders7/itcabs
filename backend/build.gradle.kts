@@ -10,7 +10,7 @@ version = "0.1.0"
 
 // Spring Boot 3.3 supports JDK 17-21. We target 21 (build in CI/Docker on 21,
 // not the host's JDK 25 which Spring Boot does not yet certify).
-java { toolchain { languageVersion.set(JavaLanguageVersion.of(25)) } }
+java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
 
 repositories { mavenCentral() }
 
