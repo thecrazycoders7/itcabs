@@ -2,15 +2,20 @@ package com.itcabs.di
 
 import com.itcabs.core.network.AuthApi
 import com.itcabs.core.network.DispatchApi
+import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.NetworkFactory
 import android.content.Context
 import com.itcabs.BuildConfig
 import com.itcabs.PersistentTokenStore
+import com.itcabs.core.database.LegDao
+import com.itcabs.core.database.UserDao
 import com.itcabs.data.AuthRepositoryImpl
 import com.itcabs.data.DispatchRepositoryImpl
+import com.itcabs.data.DriverRepositoryImpl
 import com.itcabs.data.TokenStore
 import com.itcabs.domain.repository.AuthRepository
 import com.itcabs.domain.repository.DispatchRepository
+import com.itcabs.domain.repository.DriverRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -45,11 +50,21 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun authRepository(api: AuthApi, tokenStore: TokenStore): AuthRepository =
-        AuthRepositoryImpl(api, tokenStore)
+    fun driverApi(tokenStore: TokenStore): DriverApi =
+        NetworkFactory.driverApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
 
     @Provides
     @Singleton
-    fun dispatchRepository(api: DispatchApi): DispatchRepository =
-        DispatchRepositoryImpl(api)
+    fun authRepository(api: AuthApi, tokenStore: TokenStore, userDao: UserDao): AuthRepository =
+        AuthRepositoryImpl(api, tokenStore, userDao)
+
+    @Provides
+    @Singleton
+    fun driverRepository(api: DriverApi): DriverRepository =
+        DriverRepositoryImpl(api)
+
+    @Provides
+    @Singleton
+    fun dispatchRepository(api: DispatchApi, dao: LegDao): DispatchRepository =
+        DispatchRepositoryImpl(api, dao)
 }

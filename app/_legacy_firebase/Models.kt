@@ -1,6 +1,7 @@
 package com.itcabs
 
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.Exclude
 
 enum class Role { COORDINATOR, DRIVER }
 
@@ -31,11 +32,30 @@ data class UserProfile(
     val ratingSum: Double = 0.0,
     val ratingCount: Long = 0,
 ) {
+    @get:Exclude
     val ratingAvg: Double get() = if (ratingCount == 0L) 0.0 else ratingSum / ratingCount
+
     // A driver may claim only once every KYC field is present AND an admin verified it.
+    @get:Exclude
     val kycComplete: Boolean
         get() = name.isNotBlank() && vehicleType.isNotBlank() && vehicleReg.isNotBlank() &&
                 aadhaar.isNotBlank() && rcNumber.isNotBlank() && photoUrl.isNotBlank()
+
+    /**
+     * Stop storing raw PII (Aadhaar/RC) in plaintext Firestore.
+     * Returns a copy with PII masked: "********1234".
+     */
+    fun masked(): UserProfile = copy(
+        aadhaar = mask(aadhaar),
+        rcNumber = mask(rcNumber)
+    )
+
+    companion object {
+        fun mask(s: String): String {
+            if (s.isBlank() || s.startsWith("*")) return s
+            return if (s.length <= 4) s else "*".repeat(s.length - 4) + s.takeLast(4)
+        }
+    }
 }
 
 /**

@@ -17,8 +17,13 @@ itcabs:
     refresh-ttl-days: 30
   otp:
     ttl-seconds: 300
-    # Dev: OTP is logged, not sent by SMS. Wire a gateway (MSG91) in M3.
+    # Provider: 'dev' logs the code (no SMS); 'msg91' sends via MSG91 Flow.
+    provider: ${OTP_PROVIDER:dev}
+    # Dev only: OTP is logged, not sent by SMS. Set false in prod.
     dev-log-code: true
+    msg91:
+      auth-key: ${MSG91_AUTH_KEY:}
+      template-id: ${MSG91_TEMPLATE_ID:}
 
 springdoc:
   swagger-ui:

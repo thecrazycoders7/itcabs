@@ -23,6 +23,7 @@ fun LegDto.toDomain(): Leg = Leg(
     seats = seats,
     status = LegStatus.valueOf(status),
     claimedBy = claimedBy,
+    claimedByName = claimedByName,
     version = version,
 )
 

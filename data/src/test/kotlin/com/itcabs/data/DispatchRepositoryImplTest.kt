@@ -1,5 +1,7 @@
 package com.itcabs.data
 
+import com.itcabs.core.database.LegDao
+import com.itcabs.core.database.LegEntity
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
@@ -7,6 +9,8 @@ import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StatusUpdateDto
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.LegStatus
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -35,11 +39,21 @@ private class FakeDispatchApi(
     override suspend fun myClaims() = feedResponse
 }
 
+/** No-op LegDao — these tests exercise API mapping + the 409 path, not the local cache. */
+private class FakeLegDao : LegDao {
+    override fun getLegsFlow(): Flow<List<LegEntity>> = flowOf(emptyList())
+    override fun getMyLegsFlow(userId: Long): Flow<List<LegEntity>> = flowOf(emptyList())
+    override fun getMyClaimsFlow(userId: Long): Flow<List<LegEntity>> = flowOf(emptyList())
+    override suspend fun insertLegs(legs: List<LegEntity>) = Unit
+    override suspend fun clearAll() = Unit
+    override suspend fun clearMyLegs(userId: Long) = Unit
+}
+
 class DispatchRepositoryImplTest {
 
     @Test
     fun claim_won_maps_leg_to_domain() = runTest {
-        val repo = DispatchRepositoryImpl(FakeDispatchApi())
+        val repo = DispatchRepositoryImpl(FakeDispatchApi(), FakeLegDao())
 
         val ok = assertIs<AppResult.Ok<*>>(repo.claim(1))
         val claimed = ok.value as com.itcabs.domain.model.Leg
@@ -54,7 +68,7 @@ class DispatchRepositoryImplTest {
             409,
             """{"error":"leg already taken"}""".toResponseBody("application/json".toMediaType()),
         )
-        val repo = DispatchRepositoryImpl(FakeDispatchApi(claimResponse = conflict))
+        val repo = DispatchRepositoryImpl(FakeDispatchApi(claimResponse = conflict), FakeLegDao())
 
         val err = assertIs<AppResult.Err>(repo.claim(1))
         assertEquals(409, err.code)
@@ -62,7 +76,7 @@ class DispatchRepositoryImplTest {
 
     @Test
     fun feed_maps_list_and_status() = runTest {
-        val repo = DispatchRepositoryImpl(FakeDispatchApi())
+        val repo = DispatchRepositoryImpl(FakeDispatchApi(), FakeLegDao())
 
         val ok = assertIs<AppResult.Ok<*>>(repo.feed(area = null, vehicleType = null))
         @Suppress("UNCHECKED_CAST")

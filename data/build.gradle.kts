@@ -2,14 +2,27 @@
 // Pure JVM for the API-client slice; gains the Android plugin + Room when the local
 // single-source-of-truth cache lands (ADR-0007, next slices).
 plugins {
-    id("org.jetbrains.kotlin.jvm")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.itcabs.data"
+    compileSdk = 34
+    defaultConfig { minSdk = 24 }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
     api(project(":domain"))
     implementation(project(":core:network"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation(project(":core:database"))
+    implementation(libs.kotlinx.coroutines.core)
 
-    testImplementation("org.jetbrains.kotlin:kotlin-test:2.0.20")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

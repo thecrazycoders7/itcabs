@@ -1,9 +1,9 @@
 // :core:designsystem — the ITCABS/IT-Cars theme (colors, type, shapes) from the Stitch
 // design system. Exposes Compose as `api` so feature modules get it transitively.
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -19,10 +19,11 @@ android {
 }
 
 dependencies {
-    api(platform("androidx.compose:compose-bom:2024.09.03"))
-    api("androidx.compose.ui:ui")
-    api("androidx.compose.foundation:foundation")
-    api("androidx.compose.material3:material3")
-    api("androidx.compose.material:material-icons-extended")
-    api("androidx.compose.ui:ui-tooling-preview")
+    api(platform(libs.androidx.compose.bom))
+    api(libs.androidx.compose.ui)
+    api(libs.androidx.compose.foundation)
+    api(libs.androidx.compose.material3)
+    api(libs.androidx.compose.material.icons.extended)
+    api(libs.androidx.compose.ui.tooling.preview)
+    debugApi(libs.androidx.compose.ui.tooling)
 }

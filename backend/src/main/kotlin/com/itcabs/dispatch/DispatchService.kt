@@ -123,8 +123,10 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
     private fun legsWhere(where: String, params: MapSqlParameterSource): List<LegDto> = db.query(
         """SELECT l.id, l.job_id, l.coordinator_id, j.office, j.shift, l.pickup, l.drop_point,
                   l.area, l.time_window, l.vehicle_type, l.fare_paise, l.seats, l.status,
-                  l.claimed_by, l.version
-             FROM legs l JOIN jobs j ON j.id = l.job_id
+                  l.claimed_by, u.name as claimed_by_name, l.version
+             FROM legs l
+             JOIN jobs j ON j.id = l.job_id
+             LEFT JOIN users u ON u.id = l.claimed_by
             WHERE $where""",
         params, LEG_MAPPER,
     )
@@ -146,6 +148,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                 seats = rs.getInt("seats"),
                 status = rs.getString("status"),
                 claimedBy = rs.getObject("claimed_by")?.let { (it as Number).toLong() },
+                claimedByName = rs.getString("claimed_by_name"),
                 version = rs.getInt("version"),
             )
         }

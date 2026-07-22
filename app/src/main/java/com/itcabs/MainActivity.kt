@@ -6,9 +6,16 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -17,14 +24,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itcabs.core.designsystem.ItCabsTheme
 import com.itcabs.domain.model.UserRole
 import com.itcabs.feature.auth.AuthScreen
+import com.itcabs.feature.auth.ProfileScreen
 import com.itcabs.feature.dispatch.CoordinatorHomeScreen
 import com.itcabs.feature.dispatch.DriverFeedScreen
+import com.itcabs.feature.dispatch.MyTripsScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -56,22 +68,75 @@ private fun ItCabsApp(root: RootViewModel = hiltViewModel()) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoleHome(role: UserRole, onSignOut: () -> Unit) {
+    when (role) {
+        UserRole.DRIVER -> DriverHome(onSignOut)
+        UserRole.COORDINATOR -> RoleShell("IT Cars Dispatch", onSignOut) { CoordinatorHomeScreen() }
+    }
+}
+
+/** Driver home: two tabs — the open-leg feed and the driver's own claimed trips. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DriverHome(onSignOut: () -> Unit) {
+    var tab by remember { mutableIntStateOf(0) }
+    val title = when (tab) {
+        0 -> "Available Trips"
+        1 -> "My Trips"
+        else -> "Profile"
+    }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (role == UserRole.DRIVER) "Available Trips" else "IT Cars Dispatch") },
+                title = { Text(title) },
+                actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = tab == 0,
+                    onClick = { tab = 0 },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                    label = { Text("Available") },
+                )
+                NavigationBarItem(
+                    selected = tab == 1,
+                    onClick = { tab = 1 },
+                    icon = { Icon(Icons.Filled.DirectionsCar, contentDescription = null) },
+                    label = { Text("My Trips") },
+                )
+                NavigationBarItem(
+                    selected = tab == 2,
+                    onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                    label = { Text("Profile") },
+                )
+            }
+        },
+    ) { padding ->
+        Box(Modifier.padding(padding)) {
+            when (tab) {
+                0 -> DriverFeedScreen()
+                1 -> MyTripsScreen()
+                else -> ProfileScreen(onSignOut = onSignOut)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RoleShell(title: String, onSignOut: () -> Unit, content: @Composable () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
                 actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
             )
         },
     ) { padding ->
-        Box(Modifier.padding(padding)) {
-            when (role) {
-                UserRole.DRIVER -> DriverFeedScreen()
-                UserRole.COORDINATOR -> CoordinatorHomeScreen()
-            }
-        }
+        Box(Modifier.padding(padding)) { content() }
     }
 }

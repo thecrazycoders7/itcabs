@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itcabs.core.designsystem.ItCabsColors
 import com.itcabs.domain.model.UserRole
+import androidx.compose.ui.tooling.preview.Preview
+import com.itcabs.core.designsystem.ItCabsTheme
 
 /**
  * The login flow, styled to the IT Cars design (login_screen + otp_verification).
@@ -56,7 +58,41 @@ fun AuthScreen(
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    AuthContent(
+        state = state,
+        onSignedIn = onSignedIn,
+        onPhoneChange = viewModel::onPhoneChange,
+        requestOtp = viewModel::requestOtp,
+        onCodeChange = viewModel::onCodeChange,
+        onRoleChange = viewModel::onRoleChange,
+        onNameChange = viewModel::onNameChange,
+        verify = viewModel::verify,
+        onVehicleTypeChange = viewModel::onVehicleTypeChange,
+        onVehicleRegChange = viewModel::onVehicleRegChange,
+        onAadhaarChange = viewModel::onAadhaarChange,
+        onRcNumberChange = viewModel::onRcNumberChange,
+        onPhotoUrlChange = viewModel::onPhotoUrlChange,
+        submitKyc = viewModel::submitKyc
+    )
+}
 
+@Composable
+fun AuthContent(
+    state: AuthUiState,
+    onSignedIn: (UserRole) -> Unit = {},
+    onPhoneChange: (String) -> Unit = {},
+    requestOtp: () -> Unit = {},
+    onCodeChange: (String) -> Unit = {},
+    onRoleChange: (UserRole) -> Unit = {},
+    onNameChange: (String) -> Unit = {},
+    verify: () -> Unit = {},
+    onVehicleTypeChange: (String) -> Unit = {},
+    onVehicleRegChange: (String) -> Unit = {},
+    onAadhaarChange: (String) -> Unit = {},
+    onRcNumberChange: (String) -> Unit = {},
+    onPhotoUrlChange: (String) -> Unit = {},
+    submitKyc: () -> Unit = {},
+) {
     LaunchedEffect(state.signedIn) {
         if (state.signedIn) state.signedInRole?.let(onSignedIn)
     }
@@ -71,8 +107,17 @@ fun AuthScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         when (state.step) {
-            AuthUiState.Step.Phone -> LoginStep(state, viewModel)
-            AuthUiState.Step.Code -> OtpStep(state, viewModel)
+            AuthUiState.Step.Phone -> LoginStep(state, onPhoneChange, requestOtp)
+            AuthUiState.Step.Code -> OtpStep(state, onCodeChange, onRoleChange, onNameChange, verify)
+            AuthUiState.Step.Kyc -> KycStep(
+                state = state,
+                onVehicleTypeChange = onVehicleTypeChange,
+                onVehicleRegChange = onVehicleRegChange,
+                onAadhaarChange = onAadhaarChange,
+                onRcNumberChange = onRcNumberChange,
+                onPhotoUrlChange = onPhotoUrlChange,
+                submitKyc = submitKyc
+            )
         }
 
         if (state.loading) CircularProgressIndicator()
@@ -83,7 +128,77 @@ fun AuthScreen(
 }
 
 @Composable
-private fun LoginStep(state: AuthUiState, vm: AuthViewModel) {
+private fun KycStep(
+    state: AuthUiState,
+    onVehicleTypeChange: (String) -> Unit,
+    onVehicleRegChange: (String) -> Unit,
+    onAadhaarChange: (String) -> Unit,
+    onRcNumberChange: (String) -> Unit,
+    onPhotoUrlChange: (String) -> Unit,
+    submitKyc: () -> Unit,
+) {
+    BrandBadge(Icons.Filled.Verified)
+    Text(
+        "Driver KYC",
+        style = MaterialTheme.typography.headlineMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(
+        "Please provide your vehicle and identity details to start claiming trips.",
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+            value = state.vehicleType,
+            onValueChange = onVehicleTypeChange,
+            label = { Text("Vehicle Type (e.g. Sedan, SUV)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = state.vehicleReg,
+            onValueChange = onVehicleRegChange,
+            label = { Text("Registration Number") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = state.aadhaar,
+            onValueChange = onAadhaarChange,
+            label = { Text("Aadhaar Number") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+        OutlinedTextField(
+            value = state.rcNumber,
+            onValueChange = onRcNumberChange,
+            label = { Text("RC Number") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        // ponytail: real driver-photo capture/upload is a later feature (image picker + storage
+        // that returns a URL). Until then we don't ask the user for a URL — photoUrl is sent blank.
+    }
+
+    val kycComplete = state.vehicleType.isNotBlank() && state.vehicleReg.isNotBlank() &&
+            state.aadhaar.isNotBlank() && state.rcNumber.isNotBlank()
+
+    Button(
+        onClick = submitKyc,
+        enabled = !state.loading && kycComplete,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+    ) {
+        Text("Submit KYC", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+private fun LoginStep(
+    state: AuthUiState,
+    onPhoneChange: (String) -> Unit,
+    requestOtp: () -> Unit,
+) {
     BrandBadge(Icons.Filled.DirectionsCar)
     Text(
         "Welcome to IT Cars",
@@ -127,7 +242,7 @@ private fun LoginStep(state: AuthUiState, vm: AuthViewModel) {
             }
             OutlinedTextField(
                 value = state.phone,
-                onValueChange = { vm.onPhoneChange(it.filter(Char::isDigit).take(10)) },
+                onValueChange = { onPhoneChange(it.filter(Char::isDigit).take(10)) },
                 placeholder = { Text("Enter 10-digit number") },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
@@ -136,7 +251,7 @@ private fun LoginStep(state: AuthUiState, vm: AuthViewModel) {
             )
         }
         Button(
-            onClick = vm::requestOtp,
+            onClick = requestOtp,
             enabled = !state.loading && state.phone.length == 10,
             shape = MaterialTheme.shapes.small,
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -168,7 +283,13 @@ private fun LoginStep(state: AuthUiState, vm: AuthViewModel) {
 }
 
 @Composable
-private fun OtpStep(state: AuthUiState, vm: AuthViewModel) {
+private fun OtpStep(
+    state: AuthUiState,
+    onCodeChange: (String) -> Unit,
+    onRoleChange: (UserRole) -> Unit,
+    onNameChange: (String) -> Unit,
+    verify: () -> Unit,
+) {
     BrandBadge(Icons.Filled.Shield)
     Text(
         "Verify OTP",
@@ -181,21 +302,21 @@ private fun OtpStep(state: AuthUiState, vm: AuthViewModel) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
-    OtpBoxes(value = state.code, onValueChange = vm::onCodeChange, modifier = Modifier.fillMaxWidth())
+    OtpBoxes(value = state.code, onValueChange = onCodeChange, modifier = Modifier.fillMaxWidth())
 
     // New users pick a role + name; returning users keep theirs (backend ignores these then).
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         UserRole.entries.forEach { role ->
             FilterChip(
                 selected = state.role == role,
-                onClick = { vm.onRoleChange(role) },
+                onClick = { onRoleChange(role) },
                 label = { Text(role.name) },
             )
         }
     }
     OutlinedTextField(
         value = state.name,
-        onValueChange = vm::onNameChange,
+        onValueChange = onNameChange,
         label = { Text("Name (new users)") },
         singleLine = true,
         shape = MaterialTheme.shapes.small,
@@ -203,12 +324,36 @@ private fun OtpStep(state: AuthUiState, vm: AuthViewModel) {
     )
 
     Button(
-        onClick = vm::verify,
+        onClick = verify,
         enabled = !state.loading && state.code.length == 6,
         shape = MaterialTheme.shapes.small,
         modifier = Modifier.fillMaxWidth().height(48.dp),
     ) {
         Text("Verify", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AuthScreenPhonePreview() {
+    ItCabsTheme {
+        AuthContent(state = AuthUiState(step = AuthUiState.Step.Phone))
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AuthScreenOtpPreview() {
+    ItCabsTheme {
+        AuthContent(state = AuthUiState(step = AuthUiState.Step.Code, phone = "9988776655"))
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AuthScreenKycPreview() {
+    ItCabsTheme {
+        AuthContent(state = AuthUiState(step = AuthUiState.Step.Kyc))
     }
 }
 

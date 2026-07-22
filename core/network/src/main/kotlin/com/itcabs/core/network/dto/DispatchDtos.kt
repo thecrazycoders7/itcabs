@@ -38,6 +38,7 @@ data class LegDto(
     val seats: Int,
     val status: String,
     val claimedBy: Long? = null,
+    val claimedByName: String? = null,
     val version: Int,
 )
 

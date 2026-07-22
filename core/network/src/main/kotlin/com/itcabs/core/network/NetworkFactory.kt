@@ -20,8 +20,12 @@ object NetworkFactory {
     fun dispatchApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DispatchApi =
         retrofit(baseUrl, session, debug).create(DispatchApi::class.java)
 
+    fun driverApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DriverApi =
+        retrofit(baseUrl, session, debug).create(DriverApi::class.java)
+
     private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
+            .addInterceptor(ConnectivityInterceptor()) // outermost: turn connection failures into a 503 result, not a crash
             .addInterceptor(AuthInterceptor(session))
             .authenticator(TokenAuthenticator(baseUrl, session, json))
             .apply {
