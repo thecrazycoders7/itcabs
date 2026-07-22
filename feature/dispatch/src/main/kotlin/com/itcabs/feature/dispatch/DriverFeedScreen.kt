@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.itcabs.domain.model.KycStatus
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import androidx.compose.ui.tooling.preview.Preview
@@ -100,6 +101,7 @@ fun DriverFeedContent(
             )
         }
 
+        state.kycStatus?.takeIf { it != KycStatus.VERIFIED }?.let { VerificationBanner(it) }
         state.notice?.let { NoticeBar(it, onDismiss = onDismissNotice) }
         state.error?.let {
             Text(
@@ -121,6 +123,7 @@ fun DriverFeedContent(
                     LegCard(
                         leg = leg,
                         claiming = state.claimingId == leg.id,
+                        canClaim = state.canClaim,
                         onClaim = { onClaim(leg.id) },
                     )
                 }
@@ -151,8 +154,29 @@ private fun NoticeBar(text: String, onDismiss: () -> Unit) {
     }
 }
 
+/** Amber banner telling an unverified driver why they can't claim yet. */
 @Composable
-private fun LegCard(leg: Leg, claiming: Boolean, onClaim: () -> Unit) {
+private fun VerificationBanner(status: KycStatus) {
+    val text = when (status) {
+        KycStatus.NONE -> "Complete your KYC to start claiming trips."
+        KycStatus.PENDING -> "Verification pending — you can't claim trips yet."
+        KycStatus.REJECTED -> "Verification rejected — please re-submit your KYC."
+        KycStatus.VERIFIED -> return
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(Color(0xFFFDECC8))
+            .padding(12.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF7A5200), fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun LegCard(leg: Leg, claiming: Boolean, canClaim: Boolean, onClaim: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -196,7 +220,7 @@ private fun LegCard(leg: Leg, claiming: Boolean, onClaim: () -> Unit) {
             }
             Button(
                 onClick = onClaim,
-                enabled = !claiming,
+                enabled = !claiming && canClaim,
                 shape = MaterialTheme.shapes.small,
             ) {
                 if (claiming) {

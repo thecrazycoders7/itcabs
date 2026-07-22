@@ -3,8 +3,10 @@ package com.itcabs.feature.dispatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.KycStatus
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.repository.DispatchRepository
+import com.itcabs.domain.repository.DriverRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,11 +22,17 @@ data class DriverFeedUiState(
     val claimingId: Long? = null,
     val error: String? = null,
     val notice: String? = null,
-)
+    /** null while the driver's verification status is still loading. */
+    val kycStatus: KycStatus? = null,
+) {
+    /** Only a verified driver may claim. Allow while status is still unknown (backend re-checks). */
+    val canClaim: Boolean get() = kycStatus == null || kycStatus == KycStatus.VERIFIED
+}
 
 @HiltViewModel
 class DriverFeedViewModel @Inject constructor(
     private val dispatch: DispatchRepository,
+    private val driver: DriverRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DriverFeedUiState())
@@ -35,6 +43,9 @@ class DriverFeedViewModel @Inject constructor(
             dispatch.getFeedFlow().collect { legs ->
                 _state.update { it.copy(legs = legs) }
             }
+        }
+        viewModelScope.launch {
+            (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus) } }
         }
         refresh()
     }
@@ -53,6 +64,16 @@ class DriverFeedViewModel @Inject constructor(
 
     /** Claim a leg. On 409 the leg was taken by someone else — surface it and refresh the feed. */
     fun claim(legId: Long) {
+        val status = _state.value.kycStatus
+        if (status != null && status != KycStatus.VERIFIED) {
+            val why = when (status) {
+                KycStatus.NONE -> "Complete your KYC to claim trips."
+                KycStatus.PENDING -> "Your verification is pending — you can't claim trips yet."
+                else -> "Your account can't claim trips. Contact support."
+            }
+            _state.update { it.copy(notice = why) }
+            return
+        }
         _state.update { it.copy(claimingId = legId, notice = null) }
         viewModelScope.launch {
             when (val result = dispatch.claim(legId)) {
