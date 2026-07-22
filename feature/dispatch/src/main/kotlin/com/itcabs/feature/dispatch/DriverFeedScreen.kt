@@ -36,6 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itcabs.domain.model.Leg
+import com.itcabs.domain.model.LegStatus
+import androidx.compose.ui.tooling.preview.Preview
+import com.itcabs.core.designsystem.ItCabsTheme
 
 /** Money is stored in paise; render as ₹ with no decimals for whole rupees. */
 internal fun formatRupees(paise: Long): String = "₹${paise / 100}"
@@ -43,7 +46,21 @@ internal fun formatRupees(paise: Long): String = "₹${paise / 100}"
 @Composable
 fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    DriverFeedContent(
+        state = state,
+        onAreaChange = viewModel::onAreaChange,
+        onDismissNotice = viewModel::dismissNotice,
+        onClaim = viewModel::claim
+    )
+}
 
+@Composable
+fun DriverFeedContent(
+    state: DriverFeedUiState,
+    onAreaChange: (String) -> Unit = {},
+    onDismissNotice: () -> Unit = {},
+    onClaim: (Long) -> Unit = {},
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -63,7 +80,7 @@ fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
 
         OutlinedTextField(
             value = state.area,
-            onValueChange = viewModel::onAreaChange,
+            onValueChange = onAreaChange,
             placeholder = { Text("Search jobs by area…") },
             singleLine = true,
             shape = MaterialTheme.shapes.small,
@@ -83,7 +100,7 @@ fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
             )
         }
 
-        state.notice?.let { NoticeBar(it, onDismiss = viewModel::dismissNotice) }
+        state.notice?.let { NoticeBar(it, onDismiss = onDismissNotice) }
         state.error?.let {
             Text(
                 it,
@@ -104,7 +121,7 @@ fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
                     LegCard(
                         leg = leg,
                         claiming = state.claimingId == leg.id,
-                        onClaim = { viewModel.claim(leg.id) },
+                        onClaim = { onClaim(leg.id) },
                     )
                 }
             }
@@ -212,5 +229,27 @@ private fun StatusChip(text: String) {
             .padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
         Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DriverFeedPreview() {
+    val sampleLegs = listOf(
+        Leg(
+            id = 1, jobId = 10, coordinatorId = 100, office = "DLF Cyber City", shift = "Login",
+            pickup = "Gachibowli", drop = "DLF Cyber City", area = "Gachibowli",
+            timeWindow = "09:00 - 10:00", vehicleType = "Sedan", farePaise = 45000,
+            seats = 4, status = LegStatus.OPEN, claimedBy = null, claimedByName = null, version = 1
+        ),
+        Leg(
+            id = 2, jobId = 11, coordinatorId = 101, office = "Google", shift = "Logout",
+            pickup = "Kondapur", drop = "Google", area = "Kondapur",
+            timeWindow = "18:00 - 19:00", vehicleType = "SUV", farePaise = 35000,
+            seats = 6, status = LegStatus.OPEN, claimedBy = null, claimedByName = null, version = 1
+        )
+    )
+    ItCabsTheme {
+        DriverFeedContent(state = DriverFeedUiState(legs = sampleLegs))
     }
 }

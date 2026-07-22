@@ -8,7 +8,6 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
 
 /** All Firestore access. One instance for the app (see ItCabsApp). */
 class Repo(
@@ -22,7 +21,7 @@ class Repo(
 
     suspend fun saveProfile(p: UserProfile) {
         val id = uid ?: error("not signed in")
-        db.collection("users").document(id).set(p.copy(uid = id)).await()
+        db.collection("users").document(id).set(p.masked().copy(uid = id)).await()
     }
 
     /** Live profile for the signed-in user (null until it exists). */
@@ -133,7 +132,6 @@ class Repo(
     private fun now() = System.currentTimeMillis()
 
     companion object {
-        fun newRequestId() = UUID.randomUUID().toString()
         /** A leg is claimable iff it is currently OPEN. The one rule that makes claiming first-wins. */
         fun canClaim(currentStatus: String?) = currentStatus == LegStatus.OPEN.name
     }

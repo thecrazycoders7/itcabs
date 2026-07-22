@@ -21,6 +21,7 @@ data class Leg(
     val seats: Int,
     val status: LegStatus,
     val claimedBy: Long?,
+    val claimedByName: String?,
     val version: Int,
 )
 

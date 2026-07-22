@@ -5,6 +5,9 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.10.0"
+}
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -19,6 +22,7 @@ include(":app")
 include(":domain")
 include(":core:network")
 include(":core:designsystem")
+include(":core:database")
 include(":data")
 include(":feature:auth")
 include(":feature:dispatch")

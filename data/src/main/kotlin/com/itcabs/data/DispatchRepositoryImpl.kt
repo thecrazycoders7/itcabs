@@ -1,5 +1,8 @@
 package com.itcabs.data
 
+import com.itcabs.core.database.LegDao
+import com.itcabs.core.database.toDomain
+import com.itcabs.core.database.toEntity
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.RatingDto
@@ -9,14 +12,36 @@ import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
 import com.itcabs.domain.repository.DispatchRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
-class DispatchRepositoryImpl(private val api: DispatchApi) : DispatchRepository {
+class DispatchRepositoryImpl(
+    private val api: DispatchApi,
+    private val dao: LegDao,
+) : DispatchRepository {
+
+    override fun getMyLegsFlow(userId: Long): Flow<List<Leg>> =
+        dao.getMyLegsFlow(userId).map { entities -> entities.map { it.toDomain() } }
+
+    override fun getFeedFlow(): Flow<List<Leg>> =
+        dao.getLegsFlow().map { entities -> entities.map { it.toDomain() } }
+
+    override fun getMyClaimsFlow(userId: Long): Flow<List<Leg>> =
+        dao.getMyClaimsFlow(userId).map { entities -> entities.map { it.toDomain() } }
 
     override suspend fun postJob(job: NewJob): AppResult<List<Leg>> =
-        api.postJob(job.toDto()).asResult { it.map(LegDto::toDomain) }
+        api.postJob(job.toDto()).asResult { dtos ->
+            val legs = dtos.map(LegDto::toDomain)
+            dao.insertLegs(legs.map { it.toEntity() })
+            legs
+        }
 
     override suspend fun myLegs(): AppResult<List<Leg>> =
-        api.myLegs().asResult { it.map(LegDto::toDomain) }
+        api.myLegs().asResult { dtos ->
+            val legs = dtos.map(LegDto::toDomain)
+            dao.insertLegs(legs.map { it.toEntity() })
+            legs
+        }
 
     override suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit> =
         api.setStatus(legId, StatusUpdateDto(status.name)).asResult { }
@@ -25,11 +50,25 @@ class DispatchRepositoryImpl(private val api: DispatchApi) : DispatchRepository 
         api.rate(legId, RatingDto(stars, review)).asResult { }
 
     override suspend fun feed(area: String?, vehicleType: String?): AppResult<List<Leg>> =
-        api.feed(area, vehicleType).asResult { it.map(LegDto::toDomain) }
+        api.feed(area, vehicleType).asResult { dtos ->
+            val legs = dtos.map(LegDto::toDomain)
+            // SSoT: only clear and replace if it's a "fresh" full feed request.
+            // For now, just insert/update to keep it simple.
+            dao.insertLegs(legs.map { it.toEntity() })
+            legs
+        }
 
     override suspend fun claim(legId: Long): AppResult<Leg> =
-        api.claim(legId).asResult { it.toDomain() }
+        api.claim(legId).asResult { dto ->
+            val leg = dto.toDomain()
+            dao.insertLegs(listOf(leg.toEntity()))
+            leg
+        }
 
     override suspend fun myClaims(): AppResult<List<Leg>> =
-        api.myClaims().asResult { it.map(LegDto::toDomain) }
+        api.myClaims().asResult { dtos ->
+            val legs = dtos.map(LegDto::toDomain)
+            dao.insertLegs(legs.map { it.toEntity() })
+            legs
+        }
 }

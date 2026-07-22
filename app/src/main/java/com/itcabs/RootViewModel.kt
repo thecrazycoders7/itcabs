@@ -28,7 +28,20 @@ class RootViewModel @Inject constructor(
     val state: StateFlow<RootState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch { _state.value = resolve() }
+        viewModelScope.launch {
+            auth.getUserFlow().collect { user ->
+                if (user != null) {
+                    _state.value = RootState.SignedIn(user.role)
+                } else if (_state.value is RootState.SignedIn) {
+                    _state.value = RootState.SignedOut
+                }
+            }
+        }
+        viewModelScope.launch {
+            if (_state.value == RootState.Loading) {
+                _state.value = resolve()
+            }
+        }
     }
 
     /**

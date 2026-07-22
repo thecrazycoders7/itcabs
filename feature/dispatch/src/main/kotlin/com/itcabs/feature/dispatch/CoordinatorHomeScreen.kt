@@ -33,6 +33,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.tooling.preview.Preview
+import com.itcabs.core.designsystem.ItCabsTheme
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.mutableIntStateOf
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 
@@ -40,6 +49,8 @@ import com.itcabs.domain.model.LegStatus
 @Composable
 fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel()) {
     var showCreate by rememberSaveable { mutableStateOf(false) }
+    var ratingLegId by rememberSaveable { mutableStateOf<Long?>(null) }
+
     if (showCreate) {
         CreateJobScreen(onPublished = {
             showCreate = false
@@ -49,7 +60,35 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
     }
 
     val state by viewModel.state.collectAsState()
+    CoordinatorHomeContent(
+        state = state,
+        onRefresh = viewModel::refresh,
+        onCreateJob = { showCreate = true },
+        onConfirm = { viewModel.setStatus(it, LegStatus.CONFIRMED) },
+        onComplete = { viewModel.setStatus(it, LegStatus.COMPLETED) },
+        onRateClick = { ratingLegId = it }
+    )
 
+    ratingLegId?.let { id ->
+        RatingDialog(
+            onDismiss = { ratingLegId = null },
+            onRate = { stars ->
+                viewModel.rate(id, stars)
+                ratingLegId = null
+            }
+        )
+    }
+}
+
+@Composable
+fun CoordinatorHomeContent(
+    state: CoordinatorHomeUiState,
+    onRefresh: () -> Unit = {},
+    onCreateJob: () -> Unit = {},
+    onConfirm: (Long) -> Unit = {},
+    onComplete: (Long) -> Unit = {},
+    onRateClick: (Long) -> Unit = {},
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -62,8 +101,8 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         ) {
             Text("My Jobs", style = MaterialTheme.typography.headlineMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = viewModel::refresh) { Text("Refresh") }
-                Button(onClick = { showCreate = true }, shape = MaterialTheme.shapes.small) {
+                TextButton(onClick = onRefresh) { Text("Refresh") }
+                Button(onClick = onCreateJob, shape = MaterialTheme.shapes.small) {
                     Icon(Icons.Filled.Add, null)
                     Text("New Job")
                 }
@@ -94,14 +133,48 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(state.legs, key = { it.id }) { leg -> CoordinatorLegCard(leg) }
+                items(state.legs, key = { it.id }) { leg ->
+                    CoordinatorLegCard(
+                        leg = leg,
+                        onConfirm = { onConfirm(leg.id) },
+                        onComplete = { onComplete(leg.id) },
+                        onRate = { onRateClick(leg.id) }
+                    )
+                }
             }
         }
     }
 }
 
+@Preview(showBackground = true)
 @Composable
-private fun CoordinatorLegCard(leg: Leg) {
+fun CoordinatorHomePreview() {
+    val sampleLegs = listOf(
+        Leg(
+            id = 1, jobId = 10, coordinatorId = 100, office = "DLF Cyber City", shift = "Login 09:00",
+            pickup = "Gachibowli", drop = "DLF Cyber City", area = "Gachibowli",
+            timeWindow = "09:00 - 10:00", vehicleType = "Sedan", farePaise = 45000,
+            seats = 4, status = LegStatus.OPEN, claimedBy = null, claimedByName = null, version = 1
+        ),
+        Leg(
+            id = 2, jobId = 11, coordinatorId = 100, office = "DLF Cyber City", shift = "Logout 18:30",
+            pickup = "DLF Cyber City", drop = "Kondapur", area = "Kondapur",
+            timeWindow = "18:30 - 19:30", vehicleType = "SUV", farePaise = 40000,
+            seats = 6, status = LegStatus.CLAIMED, claimedBy = 200, claimedByName = "Ramesh Kumar", version = 2
+        )
+    )
+    ItCabsTheme {
+        CoordinatorHomeContent(state = CoordinatorHomeUiState(legs = sampleLegs))
+    }
+}
+
+@Composable
+private fun CoordinatorLegCard(
+    leg: Leg,
+    onConfirm: () -> Unit,
+    onComplete: () -> Unit,
+    onRate: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -121,7 +194,65 @@ private fun CoordinatorLegCard(leg: Leg) {
         }
         Text("${leg.office} · ${leg.shift}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("${leg.pickup} → ${leg.drop}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+
+        if (leg.claimedByName != null) {
+            Text(
+                "Driver: ${leg.claimedByName}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            when (leg.status) {
+                LegStatus.CLAIMED -> {
+                    Button(onClick = onConfirm, shape = MaterialTheme.shapes.small) {
+                        Text("Confirm Driver")
+                    }
+                }
+                LegStatus.CONFIRMED -> {
+                    Button(onClick = onComplete, shape = MaterialTheme.shapes.small) {
+                        Text("Mark Completed")
+                    }
+                }
+                LegStatus.COMPLETED -> {
+                    TextButton(onClick = onRate) {
+                        Text("Rate Driver")
+                    }
+                }
+                else -> {}
+            }
+        }
     }
+}
+
+@Composable
+private fun RatingDialog(onDismiss: () -> Unit, onRate: (Int) -> Unit) {
+    var stars by remember { mutableIntStateOf(5) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rate Driver") },
+        text = {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                (1..5).forEach { i ->
+                    IconButton(onClick = { stars = i }) {
+                        Icon(
+                            if (i <= stars) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            contentDescription = "$i stars",
+                            tint = if (i <= stars) Color(0xFFFFB400) else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onRate(stars) }) { Text("Submit") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

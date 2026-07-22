@@ -1,5 +1,7 @@
 package com.itcabs.data
 
+import com.itcabs.core.database.UserDao
+import com.itcabs.core.database.UserEntity
 import com.itcabs.core.network.AuthApi
 import com.itcabs.core.network.dto.OtpRequestDto
 import com.itcabs.core.network.dto.OtpVerifyDto
@@ -9,6 +11,8 @@ import com.itcabs.core.network.dto.TokensDto
 import com.itcabs.core.network.dto.UserDto
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.UserRole
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -26,6 +30,13 @@ private class FakeAuthApi(private val verify: Response<TokensDto>) : AuthApi {
     override suspend fun me() = Response.success(UserDto(1, "+91", "DRIVER", "T", "ACTIVE"))
 }
 
+/** No-op UserDao — the auth tests exercise API mapping + token storage, not the cache. */
+private class FakeUserDao : UserDao {
+    override fun getUserFlow(): Flow<UserEntity?> = flowOf(null)
+    override suspend fun insertUser(user: UserEntity) = Unit
+    override suspend fun clear() = Unit
+}
+
 class AuthRepositoryImplTest {
 
     @Test
@@ -34,6 +45,7 @@ class AuthRepositoryImplTest {
         val repo = AuthRepositoryImpl(
             FakeAuthApi(Response.success(TokensDto("acc", "ref", 7, "DRIVER"))),
             store,
+            FakeUserDao(),
         )
 
         val ok = assertIs<AppResult.Ok<*>>(repo.verifyOtp("+91", "123456", UserRole.DRIVER, "T"))
@@ -52,7 +64,7 @@ class AuthRepositoryImplTest {
             401,
             """{"error":"wrong code"}""".toResponseBody("application/json".toMediaType()),
         )
-        val repo = AuthRepositoryImpl(FakeAuthApi(err), store)
+        val repo = AuthRepositoryImpl(FakeAuthApi(err), store, FakeUserDao())
 
         val failure = assertIs<AppResult.Err>(repo.verifyOtp("+91", "000000", UserRole.DRIVER, "T"))
         assertEquals(401, failure.code)
@@ -64,6 +76,7 @@ class AuthRepositoryImplTest {
         val repo = AuthRepositoryImpl(
             FakeAuthApi(Response.success(TokensDto("a", "b", 1, "DRIVER"))),
             InMemoryTokenStore(),
+            FakeUserDao(),
         )
 
         val failure = assertIs<AppResult.Err>(repo.refresh())

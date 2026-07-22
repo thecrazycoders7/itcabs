@@ -16,30 +16,31 @@ Priorities: **P0 = blocks production/compliance, P1 = structural, P2 = quality, 
 | P2 | Introduce `libs.versions.toml` version catalog | D5 | Foundation for multi-module. |
 | P1 | Stand up CI (ktlint/detekt + unit tests) on the current app | F7, CI/CD | Gate quality before the big refactor. |
 
-## Phase 1 — Backbone: backend + contract (weeks) — the pivot
+## Phase 1 — Backbone: backend + contract (weeks) — COMPLETE
 
-| P | Task | Resolves |
-|---|------|----------|
-| P0 | Scaffold the Kotlin/Spring Boot **modular monolith**; module boundaries per bounded context | F1, F2, ADR-0003 |
-| P0 | PostgreSQL schema + migrations (Flyway); `legs` with `version` + PostGIS | F5(db), F6, ADR-0004 |
-| P0 | **Server-authoritative claim** endpoint (`UPDATE ... WHERE status='OPEN' RETURNING`) + idempotency | F1, D8, ADR core |
-| P0 | Backend-owned auth: OTP via SMS gateway, JWT access/refresh, sessions, rate-limiting | F8, dim.7, ADR-0005 |
-| P1 | OpenAPI contract for v1 (auth, jobs/legs, feed, claim, rating) | F6(api) |
-| P1 | Port claim concurrency test to Testcontainers integration test | dim.14 |
-| P1 | Admin-approval KYC verification workflow (server) | dim.7, dim.11 |
+| P | Task | Resolves | Status |
+|---|------|----------|--------|
+| P0 | Scaffold the Kotlin/Spring Boot **modular monolith**; module boundaries per bounded context | F1, F2, ADR-0003 | [x] |
+| P0 | PostgreSQL schema + migrations (Flyway); `legs` with `version` + PostGIS | F5(db), F6, ADR-0004 | [x] |
+| P0 | **Server-authoritative claim** endpoint (`UPDATE ... WHERE status='OPEN' RETURNING`) + idempotency | F1, D8, ADR core | [x] |
+| P0 | Backend-owned auth: OTP via SMS gateway, JWT access/refresh, sessions, rate-limiting | F8, dim.7, ADR-0005 | [x] |
+| P1 | OpenAPI contract for v1 (auth, jobs/legs, feed, claim, rating) | F6(api) | [x] |
+| P1 | Port claim concurrency test to Testcontainers integration test | dim.14 | [x] |
+| P1 | Admin-approval KYC verification workflow (server) | dim.7, dim.11 | [x] |
 
-## Phase 2 — Re-platform Android onto the API (weeks)
+## Phase 2 — Re-platform Android onto the API (weeks) — IN PROGRESS
 
-| P | Task | Resolves |
-|---|------|----------|
-| P1 | Split `:app` into multi-module skeleton (`:core:*`, `:domain`, `:data`, `:feature:*`) | F3, D3, ADR-0007 |
-| P1 | Introduce **Hilt** DI; retire manual `Repo` singleton | F3 |
-| P1 | Pure `:domain` entities + use cases; separate DTOs + mappers | F4(domain), D4, D6 |
-| P1 | `:data` repositories on Retrofit; replace Firestore SDK calls | F1 |
-| P1 | Per-feature ViewModels with immutable `UiState` (UDF) | dim.8 |
-| P1 | Room as SSoT for feed/trips/profile | F5, ADR-0009 |
-| P1 | WebSocket client → Room deltas (realtime) | dim.10, ADR-0008 |
-| P2 | Enforce online-only claim UX (optimistic + server confirm) | dim.9, ADR-0009 |
+| P | Task | Resolves | Status |
+|---|------|----------|--------|
+| P1 | Split `:app` into multi-module skeleton (`:core:*`, `:domain`, `:data`, `:feature:*`) | F3, D3, ADR-0007 | [x] |
+| P1 | Introduce **Hilt** DI; retire manual `Repo` singleton | F3 | [x] |
+| P1 | Pure `:domain` entities + use cases; separate DTOs + mappers | F4(domain), D4, D6 | [x] |
+| P1 | `:data` repositories on Retrofit; replace Firestore SDK calls | F1 | [x] |
+| P1 | Per-feature ViewModels with immutable `UiState` (UDF) | dim.8 | [x] |
+| P1 | Room as SSoT for feed/trips/profile | F5, ADR-0009 | [x] |
+| P1 | **Driver KYC submission screen** in Compose | (parity) | [x] |
+| P1 | WebSocket client → Room deltas (realtime) | dim.10, ADR-0008 | [ ] |
+| P2 | Enforce online-only claim UX (optimistic + server confirm) | dim.9, ADR-0009 | [ ] |
 
 ## Phase 3 — Production hardening (weeks)
 

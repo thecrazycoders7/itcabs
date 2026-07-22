@@ -30,7 +30,14 @@ class DriverFeedViewModel @Inject constructor(
     private val _state = MutableStateFlow(DriverFeedUiState())
     val state: StateFlow<DriverFeedUiState> = _state.asStateFlow()
 
-    init { refresh() }
+    init {
+        viewModelScope.launch {
+            dispatch.getFeedFlow().collect { legs ->
+                _state.update { it.copy(legs = legs) }
+            }
+        }
+        refresh()
+    }
 
     fun onAreaChange(value: String) = _state.update { it.copy(area = value) }
 

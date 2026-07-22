@@ -39,3 +39,13 @@ data class UserDto(
 /** /auth/otp/request returns {"sent": true}. */
 @Serializable
 data class SentDto(val sent: Boolean = false)
+
+@Serializable
+data class KycInputDto(
+    val vehicleType: String,
+    val vehicleReg: String,
+    val aadhaarRef: String,
+    val aadhaarMasked: String,
+    val rcNumberMasked: String,
+    val photoUrl: String,
+)

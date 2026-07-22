@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.UserRole
 import com.itcabs.domain.repository.AuthRepository
+import com.itcabs.domain.repository.DriverRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,13 +27,21 @@ data class AuthUiState(
     // The authoritative role from the backend (a returning user's role may differ from the
     // one picked in the form). Non-null once signedIn; drives role-based home routing.
     val signedInRole: UserRole? = null,
+
+    // KYC fields
+    val vehicleType: String = "",
+    val vehicleReg: String = "",
+    val aadhaar: String = "",
+    val rcNumber: String = "",
+    val photoUrl: String = "",
 ) {
-    enum class Step { Phone, Code }
+    enum class Step { Phone, Code, Kyc }
 }
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val auth: AuthRepository,
+    private val driver: DriverRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthUiState())
@@ -42,6 +51,13 @@ class AuthViewModel @Inject constructor(
     fun onCodeChange(value: String) = _state.update { it.copy(code = value, error = null) }
     fun onNameChange(value: String) = _state.update { it.copy(name = value) }
     fun onRoleChange(role: UserRole) = _state.update { it.copy(role = role) }
+
+    // KYC field changes
+    fun onVehicleTypeChange(v: String) = _state.update { it.copy(vehicleType = v) }
+    fun onVehicleRegChange(v: String) = _state.update { it.copy(vehicleReg = v) }
+    fun onAadhaarChange(v: String) = _state.update { it.copy(aadhaar = v) }
+    fun onRcNumberChange(v: String) = _state.update { it.copy(rcNumber = v) }
+    fun onPhotoUrlChange(v: String) = _state.update { it.copy(photoUrl = v) }
 
     fun requestOtp() = launchLoading {
         when (val result = auth.requestOtp(_state.value.phone)) {
@@ -53,9 +69,30 @@ class AuthViewModel @Inject constructor(
     fun verify() = launchLoading {
         val s = _state.value
         when (val result = auth.verifyOtp(s.phone, s.code, s.role, s.name.ifBlank { null })) {
-            is AppResult.Ok -> _state.update {
-                it.copy(loading = false, signedIn = true, signedInRole = result.value.role)
+            is AppResult.Ok -> {
+                // If it's a new driver, go to KYC.
+                // ponytail: backend /auth/me or verify response could signal "kyc needed".
+                // For now, if role is DRIVER and it's a "new" verification (role was passed), go to KYC.
+                if (result.value.role == UserRole.DRIVER) {
+                    _state.update { it.copy(loading = false, step = AuthUiState.Step.Kyc, signedInRole = result.value.role) }
+                } else {
+                    _state.update { it.copy(loading = false, signedIn = true, signedInRole = result.value.role) }
+                }
             }
+            is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+        }
+    }
+
+    fun submitKyc() = launchLoading {
+        val s = _state.value
+        when (val result = driver.submitKyc(
+            s.vehicleType, s.vehicleReg,
+            aadhaarRef = "REF_" + s.aadhaar, // mock ref
+            aadhaarMasked = "********" + s.aadhaar.takeLast(4),
+            rcNumberMasked = "********" + s.rcNumber.takeLast(4),
+            photoUrl = s.photoUrl
+        )) {
+            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true) }
             is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
         }
     }
