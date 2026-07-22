@@ -176,16 +176,12 @@ private fun KycStep(
             label = { Text("RC Number") },
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            value = state.photoUrl,
-            onValueChange = onPhotoUrlChange,
-            label = { Text("Photo URL") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // ponytail: real driver-photo capture/upload is a later feature (image picker + storage
+        // that returns a URL). Until then we don't ask the user for a URL — photoUrl is sent blank.
     }
 
     val kycComplete = state.vehicleType.isNotBlank() && state.vehicleReg.isNotBlank() &&
-            state.aadhaar.isNotBlank() && state.rcNumber.isNotBlank() && state.photoUrl.isNotBlank()
+            state.aadhaar.isNotBlank() && state.rcNumber.isNotBlank()
 
     Button(
         onClick = submitKyc,
