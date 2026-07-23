@@ -30,11 +30,11 @@ class MyTripsViewModel @Inject constructor(
 
     init { refresh() }
 
-    /** Advance live trip progress: EN_ROUTE → ARRIVED → STARTED. Refresh reflects it back. */
-    fun setStage(legId: Long, stage: String) {
+    /** Advance live trip progress: EN_ROUTE → ARRIVED → STARTED. STARTED needs the pickup [otp]. */
+    fun setStage(legId: Long, stage: String, otp: String? = null) {
         _state.update { it.copy(error = null) }
         viewModelScope.launch {
-            when (val result = dispatch.setStage(legId, stage)) {
+            when (val result = dispatch.setStage(legId, stage, otp)) {
                 is AppResult.Ok -> refresh()
                 is AppResult.Err -> _state.update { it.copy(error = result.message) }
             }

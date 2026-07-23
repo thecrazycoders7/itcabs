@@ -30,14 +30,18 @@ data class Leg(
     val distanceKm: Double? = null,
     val claimedByTrips: Int? = null,
     val claimedByNoShows: Int? = null,
+    val passengerName: String = "",
+    val passengerPhone: String = "",
+    /** Pickup code — coordinator-only (relayed to the passenger); the driver enters it to start. */
+    val pickupOtp: String? = null,
     val version: Int,
 )
 
 /** A pickable service area (name + centroid) from the backend gazetteer. */
 data class Area(val name: String, val lat: Double, val lng: Double)
 
-/** Coordinator input for posting a job: office + shift + one or more legs. */
-data class NewJob(val office: String, val shift: String, val legs: List<NewLeg>)
+/** Coordinator input for posting a job: office + shift + one or more legs. [publishAt] schedules it. */
+data class NewJob(val office: String, val shift: String, val legs: List<NewLeg>, val publishAt: String? = null)
 
 data class NewLeg(
     val pickup: String,
@@ -47,4 +51,20 @@ data class NewLeg(
     val vehicleType: String = "",
     val farePaise: Long,
     val seats: Int = 1,
+    val passengerName: String = "",
+    val passengerPhone: String = "",
+)
+
+/** A verified driver a coordinator can hand-assign a trip to. */
+data class VerifiedDriver(val id: Long, val name: String, val tripsCompleted: Int, val noShows: Int)
+
+/** A saved route the coordinator can re-post with one tap (optionally recurring). */
+data class JobTemplate(
+    val id: Long,
+    val name: String,
+    val office: String,
+    val shift: String,
+    val vehicleType: String,
+    val legs: List<NewLeg>,
+    val recurring: Boolean,
 )

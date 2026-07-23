@@ -3,9 +3,12 @@ package com.itcabs.domain.repository
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.Area
 import com.itcabs.domain.model.CoordinatorStats
+import com.itcabs.domain.model.JobTemplate
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
+import com.itcabs.domain.model.NewLeg
+import com.itcabs.domain.model.VerifiedDriver
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -26,11 +29,23 @@ interface DispatchRepository {
     /** The coordinator's own performance summary for the Insights tab. [days] null = all time. */
     suspend fun coordinatorStats(days: Int?): AppResult<CoordinatorStats>
     suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit>
+    /** Edit an OPEN leg in place (fare/time/route/passenger). */
+    suspend fun editLeg(legId: Long, edit: NewLeg): AppResult<Leg>
+    /** Verified drivers the coordinator can hand-assign a trip to. */
+    suspend fun verifiedDrivers(): AppResult<List<VerifiedDriver>>
+    /** Directly assign an OPEN leg to a specific verified driver. */
+    suspend fun assign(legId: Long, driverId: Long): AppResult<Leg>
     /** Report a claimed driver as a no-show: dings their reliability and reopens the leg. */
     suspend fun markNoShow(legId: Long): AppResult<Unit>
     /** Coordinator marks a completed leg settled (cash paid to driver). */
     suspend fun markPaid(legId: Long): AppResult<Unit>
     suspend fun rate(legId: Long, stars: Int, review: String?): AppResult<Unit>
+
+    // templates (saved routes)
+    suspend fun templates(): AppResult<List<JobTemplate>>
+    suspend fun saveTemplate(name: String, job: NewJob, vehicleType: String, recurring: Boolean): AppResult<JobTemplate>
+    suspend fun deleteTemplate(id: Long): AppResult<Unit>
+    suspend fun postTemplate(id: Long): AppResult<List<Leg>>
 
     // driver
     fun getFeedFlow(): Flow<List<Leg>>
@@ -42,8 +57,8 @@ interface DispatchRepository {
     /** Err(409) => leg already taken. */
     suspend fun claim(legId: Long): AppResult<Leg>
 
-    /** Driver reports live progress: EN_ROUTE, ARRIVED or STARTED. */
-    suspend fun setStage(legId: Long, stage: String): AppResult<Unit>
+    /** Driver reports live progress; STARTED requires the passenger's pickup [otp]. */
+    suspend fun setStage(legId: Long, stage: String, otp: String? = null): AppResult<Unit>
 
     fun getMyClaimsFlow(userId: Long): Flow<List<Leg>>
     suspend fun myClaims(): AppResult<List<Leg>>

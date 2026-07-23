@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -27,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -91,6 +93,9 @@ fun CreateJobScreen(
             }
         }
 
+        // Bulk entry: paste a roster, one leg per line — kills hand-typing 40 legs.
+        BulkPasteCard(onAdd = viewModel::addFromPaste)
+
         state.legs.forEachIndexed { index, leg ->
             LegEditor(
                 index = index,
@@ -102,6 +107,17 @@ fun CreateJobScreen(
             )
         }
 
+        // Schedule: post now or hold the job until N hours from now (hidden from drivers till then).
+        Card {
+            SectionLabel("WHEN TO POST")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0 to "Now", 1 to "+1h", 3 to "+3h", 12 to "+12h").forEach { (h, label) ->
+                    FilterChip(selected = state.scheduleHours == h, onClick = { viewModel.onScheduleHours(h) }, label = { Text(label) })
+                }
+            }
+        }
+
+        state.notice?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
         state.error?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         }
@@ -115,8 +131,51 @@ fun CreateJobScreen(
             if (state.loading) {
                 CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
             } else {
-                Text("Publish Job", style = MaterialTheme.typography.titleLarge)
+                Text(if (state.scheduleHours > 0) "Schedule Job" else "Publish Job", style = MaterialTheme.typography.titleLarge)
             }
+        }
+
+        // Save this route for reuse — one-tap re-post later, or auto-post daily (recurring).
+        SaveTemplateCard(enabled = state.canPublish, onSave = viewModel::saveAsTemplate)
+    }
+}
+
+@Composable
+private fun BulkPasteCard(onAdd: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    Card {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            SectionLabel("PASTE ROSTER (BULK)")
+            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide" else "Show") }
+        }
+        if (expanded) {
+            Text("One leg per line: pickup, drop, area, fare", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(
+                value = text, onValueChange = { text = it },
+                placeholder = { Text("Gachibowli, DLF, Gachibowli, 450\nKondapur, Google, Kondapur, 400") },
+                modifier = Modifier.fillMaxWidth().height(100.dp),
+            )
+            Button(onClick = { onAdd(text); text = "" }, enabled = text.isNotBlank(), shape = MaterialTheme.shapes.small) {
+                Text("Add these legs")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SaveTemplateCard(enabled: Boolean, onSave: (String, Boolean) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var recurring by remember { mutableStateOf(false) }
+    Card {
+        SectionLabel("SAVE AS TEMPLATE (OPTIONAL)")
+        LabeledField("TEMPLATE NAME", name, { name = it }, "e.g. Morning login run")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(checked = recurring, onCheckedChange = { recurring = it })
+            Text("Auto-post every day", style = MaterialTheme.typography.bodyMedium)
+        }
+        OutlinedButton(onClick = { onSave(name, recurring) }, enabled = enabled && name.isNotBlank(), shape = MaterialTheme.shapes.small) {
+            Text("Save template")
         }
     }
 }
@@ -212,6 +271,9 @@ private fun LegEditor(
         if (areas.isNotEmpty()) {
             AreaPicker(selected = leg.area, areas = areas, onSelect = { onChange(leg.copy(area = it)) })
         }
+        // Who's being picked up — the driver gets this + a one-tap call.
+        LabeledField("PASSENGER (optional)", leg.passengerName, { onChange(leg.copy(passengerName = it)) }, "Employee name")
+        LabeledField("PASSENGER PHONE (optional)", leg.passengerPhone, { onChange(leg.copy(passengerPhone = it)) }, "10-digit number")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("SEATS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -3,6 +3,8 @@ package com.itcabs.data
 import com.itcabs.core.database.LegDao
 import com.itcabs.core.database.LegEntity
 import com.itcabs.core.network.DispatchApi
+import com.itcabs.core.network.dto.AssignDto
+import com.itcabs.core.network.dto.EditLegDto
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
 import com.itcabs.core.network.dto.AreaDto
@@ -10,6 +12,9 @@ import com.itcabs.core.network.dto.CoordinatorStatsDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
+import com.itcabs.core.network.dto.TemplateDto
+import com.itcabs.core.network.dto.TemplateInputDto
+import com.itcabs.core.network.dto.VerifiedDriverDto
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.LegStatus
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +48,13 @@ private class FakeDispatchApi(
     override suspend fun myLegs() = feedResponse
     override suspend fun coordinatorStats(days: Int?) = Response.success(CoordinatorStatsDto())
     override suspend fun setStatus(id: Long, body: StatusUpdateDto) = Response.success(Unit)
+    override suspend fun editLeg(id: Long, body: EditLegDto) = Response.success(leg(id, "OPEN"))
+    override suspend fun verifiedDrivers() = Response.success(emptyList<VerifiedDriverDto>())
+    override suspend fun assign(id: Long, body: AssignDto) = Response.success(leg(id, "CLAIMED", claimedBy = body.driverId))
+    override suspend fun templates() = Response.success(emptyList<TemplateDto>())
+    override suspend fun saveTemplate(body: TemplateInputDto) = Response.success(TemplateDto(1, body.name, body.office, body.shift))
+    override suspend fun deleteTemplate(id: Long) = Response.success(Unit)
+    override suspend fun postTemplate(id: Long) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun noShow(id: Long) = Response.success(Unit)
     override suspend fun markPaid(id: Long) = Response.success(Unit)
     override suspend fun rate(id: Long, body: RatingDto) = Response.success(Unit)

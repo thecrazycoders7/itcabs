@@ -21,6 +21,8 @@ data class LegForm(
     val area: String = "",
     val seats: String = "1",
     val fareRupees: String = "",
+    val passengerName: String = "",
+    val passengerPhone: String = "",
 )
 
 data class CreateJobUiState(
@@ -29,9 +31,12 @@ data class CreateJobUiState(
     val vehicleType: String = "Sedan",
     val legs: List<LegForm> = listOf(LegForm()),
     val areas: List<String> = emptyList(),
+    /** Hours from now to schedule the job; 0 = post immediately. */
+    val scheduleHours: Int = 0,
     val loading: Boolean = false,
     val error: String? = null,
     val published: Boolean = false,
+    val notice: String? = null,   // e.g. "Template saved"
 ) {
     val canPublish: Boolean
         get() = office.isNotBlank() && shift.isNotBlank() && legs.isNotEmpty() &&
@@ -69,6 +74,49 @@ class CreateJobViewModel @Inject constructor(
         it.copy(legs = it.legs.mapIndexed { i, existing -> if (i == index) leg else existing }, error = null)
     }
 
+    fun onScheduleHours(h: Int) = _state.update { it.copy(scheduleHours = h.coerceAtLeast(0)) }
+
+    /**
+     * Bulk-add legs from pasted roster lines. One leg per non-blank line:
+     * `pickup, drop, area, fare[, passenger, phone]` (extra fields optional).
+     */
+    fun addFromPaste(text: String) {
+        val parsed = text.lines().mapNotNull { line ->
+            val f = line.split(",").map { it.trim() }
+            if (f.size < 2 || f[0].isBlank() || f[1].isBlank()) return@mapNotNull null
+            LegForm(
+                pickup = f[0], drop = f[1],
+                area = f.getOrNull(2).orEmpty(),
+                fareRupees = f.getOrNull(3).orEmpty().filter { it.isDigit() || it == '.' },
+                passengerName = f.getOrNull(4).orEmpty(),
+                passengerPhone = f.getOrNull(5).orEmpty(),
+            )
+        }
+        if (parsed.isEmpty()) { _state.update { it.copy(error = "Couldn't parse any lines. Use: pickup, drop, area, fare") }; return }
+        // Replace a lone empty starter leg; otherwise append.
+        _state.update {
+            val base = if (it.legs.size == 1 && it.legs[0].pickup.isBlank() && it.legs[0].drop.isBlank()) emptyList() else it.legs
+            it.copy(legs = base + parsed, error = null)
+        }
+    }
+
+    private fun buildJob(s: CreateJobUiState): NewJob {
+        val publishAt = if (s.scheduleHours > 0)
+            java.time.OffsetDateTime.now().plusHours(s.scheduleHours.toLong()).toString() else null
+        return NewJob(
+            office = s.office, shift = s.shift, publishAt = publishAt,
+            legs = s.legs.map { form ->
+                NewLeg(
+                    pickup = form.pickup, drop = form.drop, area = form.area, timeWindow = s.shift,
+                    vehicleType = s.vehicleType,
+                    farePaise = ((form.fareRupees.toDoubleOrNull() ?: 0.0) * 100).toLong(),
+                    seats = form.seats.toIntOrNull()?.coerceAtLeast(1) ?: 1,
+                    passengerName = form.passengerName, passengerPhone = form.passengerPhone,
+                )
+            },
+        )
+    }
+
     fun publish() {
         val s = _state.value
         if (!s.canPublish) {
@@ -77,25 +125,24 @@ class CreateJobViewModel @Inject constructor(
         }
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            val job = NewJob(
-                office = s.office,
-                shift = s.shift,
-                legs = s.legs.map { form ->
-                    NewLeg(
-                        pickup = form.pickup,
-                        drop = form.drop,
-                        area = form.area,
-                        timeWindow = s.shift,
-                        vehicleType = s.vehicleType,
-                        // rupees → paise, never float in the wire type
-                        farePaise = ((form.fareRupees.toDoubleOrNull() ?: 0.0) * 100).toLong(),
-                        seats = form.seats.toIntOrNull()?.coerceAtLeast(1) ?: 1,
-                    )
-                },
-            )
-            when (val result = dispatch.postJob(job)) {
+            when (val result = dispatch.postJob(buildJob(s))) {
                 is AppResult.Ok -> _state.update { it.copy(loading = false, published = true) }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
+    /** Save the current form as a reusable template (optionally recurring/auto-daily). Doesn't post. */
+    fun saveAsTemplate(name: String, recurring: Boolean) {
+        val s = _state.value
+        if (name.isBlank() || !s.canPublish) {
+            _state.update { it.copy(error = "Give the template a name and fill every leg first.") }
+            return
+        }
+        viewModelScope.launch {
+            when (dispatch.saveTemplate(name, buildJob(s), s.vehicleType, recurring)) {
+                is AppResult.Ok -> _state.update { it.copy(notice = "Template saved") }
+                is AppResult.Err -> _state.update { it.copy(error = "Couldn't save template") }
             }
         }
     }

@@ -41,8 +41,33 @@ class DispatchController(
 
     @PatchMapping("/legs/{id}/status")
     fun setStatus(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: StatusUpdate) {
-        dispatch.setStatus(requireUserId(req), id, body.status)
+        val driverId = dispatch.setStatus(requireUserId(req), id, body.status)
         events.legChanged(id)
+        // A driver who claimed the trip deserves to know it was called off — don't let them show up cold.
+        if (body.status == "CANCELLED" && driverId != null) {
+            push.notifyUser(driverId, "Trip cancelled", "A trip you claimed was cancelled by the coordinator.")
+        }
+    }
+
+    /** Edit an OPEN leg (fare/time/route fix) — no need to cancel + repost. */
+    @PatchMapping("/legs/{id}")
+    fun editLeg(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: EditLegInput): LegDto {
+        val leg = dispatch.editLeg(requireUserId(req), id, body)
+        events.legChanged(id)
+        return leg
+    }
+
+    /** Verified drivers a coordinator can hand-assign a trip to. */
+    @GetMapping("/drivers/verified")
+    fun verifiedDrivers() = dispatch.verifiedDrivers()
+
+    /** Coordinator hand-assigns an OPEN leg to a specific driver. */
+    @PostMapping("/legs/{id}/assign")
+    fun assign(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: AssignInput): LegDto {
+        val leg = dispatch.assign(requireUserId(req), id, body.driverId)
+        events.legChanged(id)
+        push.notifyUser(body.driverId, "Trip assigned to you", "You've been assigned a ${leg.pickup} → ${leg.drop} trip.")
+        return leg
     }
 
     /** Coordinator reports a no-show: dings the driver's reliability and reopens the leg. */
@@ -92,7 +117,7 @@ class DispatchController(
     /** Driver reports live trip progress (EN_ROUTE / ARRIVED / STARTED). */
     @PostMapping("/legs/{id}/stage")
     fun setStage(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: StageUpdate) {
-        dispatch.setStage(requireUserId(req), id, body.stage)
+        dispatch.setStage(requireUserId(req), id, body.stage, body.otp)
         events.legChanged(id)
     }
 

@@ -27,6 +27,9 @@ data class LegEntity(
     val distanceKm: Double? = null,
     val claimedByTrips: Int? = null,
     val claimedByNoShows: Int? = null,
+    val passengerName: String = "",
+    val passengerPhone: String = "",
+    val pickupOtp: String? = null,
     val version: Int,
 )
 
@@ -51,6 +54,9 @@ fun LegEntity.toDomain() = Leg(
     distanceKm = distanceKm,
     claimedByTrips = claimedByTrips,
     claimedByNoShows = claimedByNoShows,
+    passengerName = passengerName,
+    passengerPhone = passengerPhone,
+    pickupOtp = pickupOtp,
     version = version
 )
 
@@ -75,5 +81,8 @@ fun Leg.toEntity() = LegEntity(
     distanceKm = distanceKm,
     claimedByTrips = claimedByTrips,
     claimedByNoShows = claimedByNoShows,
+    passengerName = passengerName,
+    passengerPhone = passengerPhone,
+    pickupOtp = pickupOtp,
     version = version
 )

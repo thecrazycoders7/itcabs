@@ -5,17 +5,23 @@ import com.itcabs.core.database.toDomain
 import com.itcabs.core.database.toEntity
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.RealtimeClient
+import com.itcabs.core.network.dto.AssignDto
+import com.itcabs.core.network.dto.EditLegDto
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
+import com.itcabs.core.network.dto.TemplateInputDto
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.Area
 import com.itcabs.domain.model.CoordinatorStats
+import com.itcabs.domain.model.JobTemplate
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
+import com.itcabs.domain.model.NewLeg
 import com.itcabs.domain.model.TopDriver
+import com.itcabs.domain.model.VerifiedDriver
 import com.itcabs.domain.repository.DispatchRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -73,6 +79,40 @@ class DispatchRepositoryImpl(
     override suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit> =
         api.setStatus(legId, StatusUpdateDto(status.name)).asResult { }
 
+    override suspend fun editLeg(legId: Long, edit: NewLeg): AppResult<Leg> =
+        api.editLeg(
+            legId,
+            EditLegDto(
+                pickup = edit.pickup, drop = edit.drop, area = edit.area, timeWindow = edit.timeWindow,
+                vehicleType = edit.vehicleType, farePaise = edit.farePaise, seats = edit.seats,
+                passengerName = edit.passengerName, passengerPhone = edit.passengerPhone,
+            ),
+        ).asResult { dto -> dto.toDomain().also { dao.insertLegs(listOf(it.toEntity())) } }
+
+    override suspend fun verifiedDrivers(): AppResult<List<VerifiedDriver>> =
+        api.verifiedDrivers().asResult { list -> list.map { VerifiedDriver(it.id, it.name, it.tripsCompleted, it.noShows) } }
+
+    override suspend fun assign(legId: Long, driverId: Long): AppResult<Leg> =
+        api.assign(legId, AssignDto(driverId)).asResult { dto -> dto.toDomain().also { dao.insertLegs(listOf(it.toEntity())) } }
+
+    override suspend fun templates(): AppResult<List<JobTemplate>> =
+        api.templates().asResult { list -> list.map { it.toDomain() } }
+
+    override suspend fun saveTemplate(name: String, job: NewJob, vehicleType: String, recurring: Boolean): AppResult<JobTemplate> =
+        api.saveTemplate(
+            TemplateInputDto(name, job.office, job.shift, vehicleType, job.legs.map { it.toDto() }, recurring),
+        ).asResult { it.toDomain() }
+
+    override suspend fun deleteTemplate(id: Long): AppResult<Unit> =
+        api.deleteTemplate(id).asResult { }
+
+    override suspend fun postTemplate(id: Long): AppResult<List<Leg>> =
+        api.postTemplate(id).asResult { dtos ->
+            val legs = dtos.map(LegDto::toDomain)
+            dao.insertLegs(legs.map { it.toEntity() })
+            legs
+        }
+
     override suspend fun markNoShow(legId: Long): AppResult<Unit> =
         api.noShow(legId).asResult { }
 
@@ -101,8 +141,8 @@ class DispatchRepositoryImpl(
             leg
         }
 
-    override suspend fun setStage(legId: Long, stage: String): AppResult<Unit> =
-        api.setStage(legId, StageUpdateDto(stage)).asResult { }
+    override suspend fun setStage(legId: Long, stage: String, otp: String?): AppResult<Unit> =
+        api.setStage(legId, StageUpdateDto(stage, otp)).asResult { }
 
     override suspend fun myClaims(): AppResult<List<Leg>> =
         api.myClaims().asResult { dtos ->

@@ -1,14 +1,20 @@
 package com.itcabs.core.network
 
 import com.itcabs.core.network.dto.AreaDto
+import com.itcabs.core.network.dto.AssignDto
 import com.itcabs.core.network.dto.CoordinatorStatsDto
+import com.itcabs.core.network.dto.EditLegDto
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
+import com.itcabs.core.network.dto.TemplateDto
+import com.itcabs.core.network.dto.TemplateInputDto
+import com.itcabs.core.network.dto.VerifiedDriverDto
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -31,6 +37,27 @@ interface DispatchApi {
 
     @PATCH("api/v1/legs/{id}/status")
     suspend fun setStatus(@Path("id") id: Long, @Body body: StatusUpdateDto): Response<Unit>
+
+    @PATCH("api/v1/legs/{id}")
+    suspend fun editLeg(@Path("id") id: Long, @Body body: EditLegDto): Response<LegDto>
+
+    @GET("api/v1/drivers/verified")
+    suspend fun verifiedDrivers(): Response<List<VerifiedDriverDto>>
+
+    @POST("api/v1/legs/{id}/assign")
+    suspend fun assign(@Path("id") id: Long, @Body body: AssignDto): Response<LegDto>
+
+    @GET("api/v1/templates")
+    suspend fun templates(): Response<List<TemplateDto>>
+
+    @POST("api/v1/templates")
+    suspend fun saveTemplate(@Body body: TemplateInputDto): Response<TemplateDto>
+
+    @DELETE("api/v1/templates/{id}")
+    suspend fun deleteTemplate(@Path("id") id: Long): Response<Unit>
+
+    @POST("api/v1/templates/{id}/post")
+    suspend fun postTemplate(@Path("id") id: Long): Response<List<LegDto>>
 
     @POST("api/v1/legs/{id}/no-show")
     suspend fun noShow(@Path("id") id: Long): Response<Unit>

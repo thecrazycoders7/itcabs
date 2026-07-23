@@ -8,13 +8,32 @@ data class LegInput(
     val vehicleType: String = "",
     val farePaise: Long,
     val seats: Int = 1,
+    val passengerName: String = "",
+    val passengerPhone: String = "",
 )
 
 data class PostJobInput(
     val office: String,
     val shift: String,
     val legs: List<LegInput>,
+    /** ISO-8601 instant; when in the future the legs stay hidden from the feed until then. */
+    val publishAt: String? = null,
 )
+
+/** Edit an OPEN leg in place (fare typo, time change, …). Nulls leave a field unchanged. */
+data class EditLegInput(
+    val pickup: String? = null,
+    val drop: String? = null,
+    val area: String? = null,
+    val timeWindow: String? = null,
+    val vehicleType: String? = null,
+    val farePaise: Long? = null,
+    val seats: Int? = null,
+    val passengerName: String? = null,
+    val passengerPhone: String? = null,
+)
+
+data class AssignInput(val driverId: Long)
 
 data class LegDto(
     val id: Long,
@@ -38,11 +57,18 @@ data class LegDto(
     val distanceKm: Double? = null,
     val claimedByTrips: Int? = null,
     val claimedByNoShows: Int? = null,
+    val passengerName: String = "",
+    val passengerPhone: String = "",
+    /** Set once claimed; the driver must enter it to start. Visible to the owning coordinator only. */
+    val pickupOtp: String? = null,
     val version: Int,
 )
 
+/** A verified driver a coordinator can directly assign a trip to. */
+data class VerifiedDriverDto(val id: Long, val name: String, val tripsCompleted: Int, val noShows: Int)
+
 data class StatusUpdate(val status: String)
-data class StageUpdate(val stage: String)
+data class StageUpdate(val stage: String, val otp: String? = null)
 
 /** A coordinator's own performance summary for the Insights tab. */
 data class CoordinatorStatsDto(
@@ -58,3 +84,23 @@ data class CoordinatorStatsDto(
 
 data class TopDriverDto(val name: String, val trips: Int)
 data class RatingInput(val stars: Int, val review: String? = null)
+
+/** A saved route the coordinator can re-post with one tap, optionally auto-posted daily. */
+data class TemplateInput(
+    val name: String,
+    val office: String,
+    val shift: String,
+    val vehicleType: String = "",
+    val legs: List<LegInput>,
+    val recurring: Boolean = false,
+)
+
+data class TemplateDto(
+    val id: Long,
+    val name: String,
+    val office: String,
+    val shift: String,
+    val vehicleType: String,
+    val legs: List<LegInput>,
+    val recurring: Boolean,
+)

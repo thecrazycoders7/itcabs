@@ -1,8 +1,11 @@
 package com.itcabs.feature.dispatch
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,23 +20,30 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itcabs.domain.model.Leg
@@ -108,7 +118,7 @@ fun MyTripsScreen(viewModel: MyTripsViewModel = hiltViewModel()) {
                     TripCard(
                         trip,
                         onChat = { chatLegId = trip.id },
-                        onStage = { stage -> viewModel.setStage(trip.id, stage) },
+                        onStage = { stage, otp -> viewModel.setStage(trip.id, stage, otp) },
                     )
                 }
             }
@@ -132,7 +142,30 @@ private fun stageLabel(stage: String?): String? = when (stage) {
 }
 
 @Composable
-private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String) -> Unit) {
+private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String, String?) -> Unit) {
+    val context = LocalContext.current
+    var askOtp by remember { mutableStateOf(false) }
+    if (askOtp) {
+        var code by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { askOtp = false },
+            title = { Text("Start trip") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ask ${trip.passengerName.ifBlank { "the passenger" }} for their 4-digit pickup code.")
+                    OutlinedTextField(
+                        value = code,
+                        onValueChange = { if (it.length <= 4) code = it.filter(Char::isDigit) },
+                        label = { Text("Pickup code") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { askOtp = false; onStage("STARTED", code) }, enabled = code.length == 4) { Text("Start") } },
+            dismissButton = { TextButton(onClick = { askOtp = false }) { Text("Cancel") } },
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,6 +189,21 @@ private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String) -> Unit) {
         }
         RoutePoint("PICKUP", trip.pickup, MaterialTheme.colorScheme.primary)
         RoutePoint("DROP", trip.drop, MaterialTheme.colorScheme.outline)
+        // Who am I picking up — with a one-tap call so the driver can reach the employee.
+        if (trip.passengerName.isNotBlank() || trip.passengerPhone.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Person, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trip.passengerName.ifBlank { "Passenger" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                if (trip.passengerPhone.isNotBlank()) {
+                    TextButton(onClick = {
+                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${trip.passengerPhone}")))
+                    }) {
+                        Icon(Icons.Filled.Call, null, Modifier.size(16.dp))
+                        Text(" Call")
+                    }
+                }
+            }
+        }
         if (trip.timeWindow.isNotBlank() || trip.vehicleType.isNotBlank()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (trip.timeWindow.isNotBlank()) {
@@ -184,9 +232,11 @@ private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String) -> Unit) {
             TextButton(onClick = onChat) { Text("Chat") }
             if (trip.status == LegStatus.CLAIMED || trip.status == LegStatus.CONFIRMED) {
                 nextStage(trip.tripStage)?.let { (stage, label) ->
-                    androidx.compose.material3.Button(onClick = { onStage(stage) }, shape = MaterialTheme.shapes.small) {
-                        Text(label)
-                    }
+                    androidx.compose.material3.Button(
+                        // Starting the trip requires the passenger's pickup code → open the OTP dialog.
+                        onClick = { if (stage == "STARTED") askOtp = true else onStage(stage, null) },
+                        shape = MaterialTheme.shapes.small,
+                    ) { Text(label) }
                 }
             }
         }

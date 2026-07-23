@@ -11,7 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-@Database(entities = [LegEntity::class, UserEntity::class], version = 5, exportSchema = false)
+@Database(entities = [LegEntity::class, UserEntity::class], version = 6, exportSchema = false)
 abstract class ItCabsDatabase : RoomDatabase() {
     abstract fun legDao(): LegDao
     abstract fun userDao(): UserDao
