@@ -18,6 +18,8 @@ interface DispatchRepository {
     // coordinator
     fun getMyLegsFlow(userId: Long): Flow<List<Leg>>
     suspend fun postJob(job: NewJob): AppResult<List<Leg>>
+    /** Repost an existing job's route as a fresh OPEN job (M6). */
+    suspend fun repostJob(jobId: Long): AppResult<List<Leg>>
     suspend fun myLegs(): AppResult<List<Leg>>
     suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit>
     suspend fun rate(legId: Long, stars: Int, review: String?): AppResult<Unit>

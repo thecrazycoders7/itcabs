@@ -42,6 +42,13 @@ class DispatchRepositoryImpl(
             legs
         }
 
+    override suspend fun repostJob(jobId: Long): AppResult<List<Leg>> =
+        api.repost(jobId).asResult { dtos ->
+            val legs = dtos.map(LegDto::toDomain)
+            dao.insertLegs(legs.map { it.toEntity() })
+            legs
+        }
+
     override suspend fun myLegs(): AppResult<List<Leg>> =
         api.myLegs().asResult { dtos ->
             val legs = dtos.map(LegDto::toDomain)

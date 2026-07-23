@@ -55,6 +55,17 @@ class CoordinatorHomeViewModel @Inject constructor(
         }
     }
 
+    /** Repost a job's route as a fresh OPEN job (M6). Realtime + refresh surface the new legs. */
+    fun repost(jobId: Long) {
+        _state.update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.repostJob(jobId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
     fun setStatus(legId: Long, status: LegStatus) {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {

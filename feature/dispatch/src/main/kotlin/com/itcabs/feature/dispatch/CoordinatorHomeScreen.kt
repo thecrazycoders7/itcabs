@@ -67,7 +67,8 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onConfirm = { viewModel.setStatus(it, LegStatus.CONFIRMED) },
         onComplete = { viewModel.setStatus(it, LegStatus.COMPLETED) },
         onCancel = { viewModel.setStatus(it, LegStatus.CANCELLED) },
-        onRateClick = { ratingLegId = it }
+        onRateClick = { ratingLegId = it },
+        onRepost = viewModel::repost,
     )
 
     ratingLegId?.let { id ->
@@ -90,6 +91,7 @@ fun CoordinatorHomeContent(
     onComplete: (Long) -> Unit = {},
     onCancel: (Long) -> Unit = {},
     onRateClick: (Long) -> Unit = {},
+    onRepost: (Long) -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -141,7 +143,8 @@ fun CoordinatorHomeContent(
                         onConfirm = { onConfirm(leg.id) },
                         onComplete = { onComplete(leg.id) },
                         onCancel = { onCancel(leg.id) },
-                        onRate = { onRateClick(leg.id) }
+                        onRate = { onRateClick(leg.id) },
+                        onRepost = { onRepost(leg.jobId) },
                     )
                 }
             }
@@ -178,6 +181,7 @@ private fun CoordinatorLegCard(
     onComplete: () -> Unit,
     onCancel: () -> Unit,
     onRate: () -> Unit,
+    onRepost: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -213,6 +217,8 @@ private fun CoordinatorLegCard(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Repost the whole route as a fresh OPEN job — one-tap reuse of a daily run (M6).
+            TextButton(onClick = onRepost) { Text("Repost") }
             when (leg.status) {
                 // OPEN or CLAIMED can still be called off; a Cancel sits next to the primary action.
                 LegStatus.OPEN -> {

@@ -22,6 +22,13 @@ class DispatchController(
         return legs
     }
 
+    @PostMapping("/jobs/{jobId}/repost")
+    fun repost(req: HttpServletRequest, @PathVariable jobId: Long): List<LegDto> {
+        val legs = dispatch.repostJob(requireUserId(req), jobId)
+        legs.forEach { events.legChanged(it.id) }
+        return legs
+    }
+
     @GetMapping("/legs/mine")
     fun myLegs(req: HttpServletRequest) = dispatch.myLegs(requireUserId(req))
 

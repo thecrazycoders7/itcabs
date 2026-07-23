@@ -38,6 +38,22 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         return legsWhere("job_id = :j", MapSqlParameterSource("j", jobId))
     }
 
+    /** Repost a route (M6): clone an existing job's legs into a new OPEN job — one-action reuse. */
+    @Transactional
+    fun repostJob(coordinatorId: Long, jobId: Long): List<LegDto> {
+        val legs = legsWhere("l.job_id = :j", MapSqlParameterSource("j", jobId))
+        val first = legs.firstOrNull() ?: throw badRequest("job not found")
+        if (first.coordinatorId != coordinatorId) throw forbidden("not your job")
+        return postJob(
+            coordinatorId,
+            PostJobInput(
+                office = first.office,
+                shift = first.shift,
+                legs = legs.map { LegInput(it.pickup, it.drop, it.area, it.timeWindow, it.vehicleType, it.farePaise, it.seats) },
+            ),
+        )
+    }
+
     fun myLegs(coordinatorId: Long) =
         legsWhere("l.coordinator_id = :c ORDER BY l.created_at DESC", MapSqlParameterSource("c", coordinatorId))
 
