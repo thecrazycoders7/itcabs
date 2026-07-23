@@ -37,6 +37,9 @@ class LegWebSocketHandler : TextWebSocketHandler() {
     /** Tell every connected client that a leg changed; they reconcile via REST. */
     fun legChanged(legId: Long) = broadcast("""{"type":"leg-changed","id":$legId}""")
 
+    /** Tell clients a new chat message landed on a leg; an open chat re-fetches (M7). */
+    fun messagePosted(legId: Long) = broadcast("""{"type":"message","legId":$legId}""")
+
     // A WebSocketSession is not safe for concurrent sends; serialize the fan-out.
     @Synchronized
     private fun broadcast(text: String) {

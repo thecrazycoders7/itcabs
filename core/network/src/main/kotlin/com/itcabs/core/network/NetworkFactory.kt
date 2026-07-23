@@ -26,6 +26,9 @@ object NetworkFactory {
     fun pushApi(baseUrl: String, session: TokenSession, debug: Boolean = false): PushApi =
         retrofit(baseUrl, session, debug).create(PushApi::class.java)
 
+    fun chatApi(baseUrl: String, session: TokenSession, debug: Boolean = false): ChatApi =
+        retrofit(baseUrl, session, debug).create(ChatApi::class.java)
+
     /** Realtime leg events (ADR-0008). Own OkHttp client with a ping keepalive for the long-lived socket. */
     fun realtimeClient(baseUrl: String, session: TokenSession): RealtimeClient {
         val client = OkHttpClient.Builder()

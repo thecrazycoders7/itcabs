@@ -22,9 +22,13 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +42,12 @@ import com.itcabs.domain.model.LegStatus
 @Composable
 fun MyTripsScreen(viewModel: MyTripsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    var chatLegId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    chatLegId?.let { id ->
+        ChatScreen(legId = id, onBack = { chatLegId = null })
+        return
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
@@ -80,14 +90,14 @@ fun MyTripsScreen(viewModel: MyTripsViewModel = hiltViewModel()) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                items(state.trips, key = { it.id }) { trip -> TripCard(trip) }
+                items(state.trips, key = { it.id }) { trip -> TripCard(trip, onChat = { chatLegId = trip.id }) }
             }
         }
     }
 }
 
 @Composable
-private fun TripCard(trip: Leg) {
+private fun TripCard(trip: Leg, onChat: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -122,6 +132,10 @@ private fun TripCard(trip: Leg) {
                     Text(trip.vehicleType, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        }
+        // Chat with the coordinator about this trip (M7).
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onChat) { Text("Chat") }
         }
     }
 }

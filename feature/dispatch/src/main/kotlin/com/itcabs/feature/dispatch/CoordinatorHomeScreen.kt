@@ -50,6 +50,12 @@ import com.itcabs.domain.model.LegStatus
 fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel()) {
     var showCreate by rememberSaveable { mutableStateOf(false) }
     var ratingLegId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var chatLegId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    chatLegId?.let { id ->
+        ChatScreen(legId = id, onBack = { chatLegId = null })
+        return
+    }
 
     if (showCreate) {
         CreateJobScreen(onPublished = {
@@ -69,6 +75,7 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onCancel = { viewModel.setStatus(it, LegStatus.CANCELLED) },
         onRateClick = { ratingLegId = it },
         onRepost = viewModel::repost,
+        onChat = { chatLegId = it },
     )
 
     ratingLegId?.let { id ->
@@ -92,6 +99,7 @@ fun CoordinatorHomeContent(
     onCancel: (Long) -> Unit = {},
     onRateClick: (Long) -> Unit = {},
     onRepost: (Long) -> Unit = {},
+    onChat: (Long) -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -145,6 +153,7 @@ fun CoordinatorHomeContent(
                         onCancel = { onCancel(leg.id) },
                         onRate = { onRateClick(leg.id) },
                         onRepost = { onRepost(leg.jobId) },
+                        onChat = { onChat(leg.id) },
                     )
                 }
             }
@@ -182,6 +191,7 @@ private fun CoordinatorLegCard(
     onCancel: () -> Unit,
     onRate: () -> Unit,
     onRepost: () -> Unit,
+    onChat: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -219,6 +229,8 @@ private fun CoordinatorLegCard(
         ) {
             // Repost the whole route as a fresh OPEN job — one-tap reuse of a daily run (M6).
             TextButton(onClick = onRepost) { Text("Repost") }
+            // Chat with the claiming driver once there is one (M7).
+            if (leg.claimedByName != null) TextButton(onClick = onChat) { Text("Chat") }
             when (leg.status) {
                 // OPEN or CLAIMED can still be called off; a Cancel sits next to the primary action.
                 LegStatus.OPEN -> {

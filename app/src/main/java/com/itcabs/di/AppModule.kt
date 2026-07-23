@@ -1,6 +1,7 @@
 package com.itcabs.di
 
 import com.itcabs.core.network.AuthApi
+import com.itcabs.core.network.ChatApi
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.NetworkFactory
@@ -14,11 +15,13 @@ import com.itcabs.PersistentTokenStore
 import com.itcabs.core.database.LegDao
 import com.itcabs.core.database.UserDao
 import com.itcabs.data.AuthRepositoryImpl
+import com.itcabs.data.ChatRepositoryImpl
 import com.itcabs.data.DeviceIdProvider
 import com.itcabs.data.DispatchRepositoryImpl
 import com.itcabs.data.DriverRepositoryImpl
 import com.itcabs.data.TokenStore
 import com.itcabs.domain.repository.AuthRepository
+import com.itcabs.domain.repository.ChatRepository
 import com.itcabs.domain.repository.DispatchRepository
 import com.itcabs.domain.repository.DriverRepository
 import dagger.Module
@@ -86,6 +89,15 @@ object AppModule {
     @Provides
     @Singleton
     fun pushTokenManager(api: PushApi): PushTokenManager = PushTokenManager(api)
+
+    @Provides
+    @Singleton
+    fun chatApi(tokenStore: TokenStore): ChatApi =
+        NetworkFactory.chatApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+
+    @Provides
+    @Singleton
+    fun chatRepository(api: ChatApi): ChatRepository = ChatRepositoryImpl(api)
 
     @Provides
     @Singleton
