@@ -35,8 +35,12 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Point release builds at the hosted backend before shipping (see docs/DEPLOY.md).
-            buildConfigField("String", "BASE_URL", "\"https://REPLACE-WITH-HOSTED-URL/\"")
+            // Hosted backend URL. Set at build time: -Pitcabs.baseUrl=https://itcabs-backend.onrender.com/
+            // or the ITCABS_BASE_URL env var. Falls back to a placeholder so a bare build still compiles.
+            val releaseBaseUrl = (findProperty("itcabs.baseUrl") as String?)
+                ?: System.getenv("ITCABS_BASE_URL")
+                ?: "https://REPLACE-WITH-HOSTED-URL/"
+            buildConfigField("String", "BASE_URL", "\"$releaseBaseUrl\"")
         }
     }
 }
