@@ -37,28 +37,51 @@ The code reads them via `application.yml`; the value after `:` is the **dev defa
 | `DB_PASSWORD` | any deploy | `postgres` | **secret** |
 | `JWT_SECRET` | any deploy | `dev-secret-change-me-…` | **secret**, ≥32 bytes, random. Rotating it logs everyone out. |
 
-Not yet env-wired (small code changes needed before pilot B):
-- **`itcabs.otp.dev-log-code`** is hardcoded `true` — in prod it must be `false` (stop logging
-  codes) and a real SMS sender must be active. Make it `${OTP_DEV_LOG:false}` when wiring SMS.
-- **SMS gateway** (e.g. MSG91): the `OtpSender` bean is a seam with a dev-log impl today. Add a
-  second impl that calls the gateway, selected by profile/env; it will need e.g. `MSG91_AUTH_KEY`
-  (**secret**) + a sender/template id. Until this exists, pilot B can't send OTPs to strangers.
+These are now env-wired (set at the host):
 
-## Backend hosting
+| Env var | Required for | Default | Notes |
+|---------|--------------|---------|-------|
+| `OTP_PROVIDER` | live SMS | `dev` (logs code) | set `msg91` in prod |
+| `MSG91_AUTH_KEY` | live SMS | — | **secret**; from MSG91 dashboard |
+| `MSG91_TEMPLATE_ID` | live SMS | approved `itcabs_otp` id | non-secret; already defaulted |
+| `PUSH_PROVIDER` | push | `noop` | set `fcm` in prod |
+| `FIREBASE_CREDENTIALS` | push | — | path to the service-account JSON (Render Secret File) |
+| `PORT` | host | `8080` | most PaaS inject this; the app binds it automatically |
 
-The `backend/Dockerfile` builds a JDK-21 image; `backend/docker-compose.yml` is the local stack.
-For a hosted deploy: push the image (or point the host at the Dockerfile) + attach a managed
-Postgres, set the env vars above. Any of Render / Railway / Fly.io works; all offer managed Postgres.
-Flyway migrates the schema automatically on first boot.
+> Live SMS in India also needs **DLT registration** on the MSG91 sender/template — business
+> paperwork, separate from the code.
 
-## Android app for a real backend
+## Backend hosting — Render + Supabase (recommended)
 
-Before a hosted run, the app must target the deployed URL instead of the loopback dev URL:
-- Today: `DEV_BASE_URL` is hardcoded in `AppModule.kt`.
-- Do (small follow-up): move it to a `BuildConfig` field / product flavors so `debug` → dev and
-  `release` → the hosted `https://…` URL. (Noted in `AppModule.kt`'s ponytail comment.)
-- Distribution: sideload the `app-debug.apk` for a handful of testers, or ship to a Play internal
-  testing track for a wider pilot.
+Chosen to match the existing TapByWisein stack. `render.yaml` (repo root) is a Blueprint that
+deploys `backend/Dockerfile` with a `/actuator/health` check; secrets are entered in the dashboard.
+
+**Postgres — Supabase**
+1. New Supabase project. Copy the connection string from **Settings → Database → Session pooler**
+   (use the *session* pooler or the direct connection, **not** the transaction pooler on :6543 —
+   pgBouncer transaction mode breaks Hikari/Flyway prepared statements).
+2. Form the JDBC URL: `jdbc:postgresql://<host>:5432/postgres?sslmode=require` (SSL is required).
+3. That host/user/password become `DB_URL` / `DB_USER` / `DB_PASSWORD`. Flyway migrates on first boot.
+
+**Backend — Render**
+1. Render → New → **Blueprint**, point at this repo (it reads `render.yaml`).
+2. Fill the `sync:false` env vars in the dashboard: `DB_URL/DB_USER/DB_PASSWORD`, a strong random
+   `JWT_SECRET` (≥32 bytes), `MSG91_AUTH_KEY`.
+3. Add a **Secret File** named `firebase-admin.json` (paste the service-account JSON) — Render mounts
+   it at `/etc/secrets/firebase-admin.json`, which `FIREBASE_CREDENTIALS` already points to.
+4. Use the **starter** plan, not free — free instances spin down when idle, which drops the WebSocket.
+5. Deploy. Verify `https://<service>.onrender.com/actuator/health` → `UP` and `/docs` loads.
+
+Railway / Fly.io / Cloud Run work too (same Dockerfile + env vars); only the dashboard differs.
+
+## Android app for the hosted backend
+
+The **release** build's URL is now build-time configurable (no hardcoded value):
+```
+./gradlew :app:assembleRelease -Pitcabs.baseUrl=https://<service>.onrender.com/
+```
+(or set the `ITCABS_BASE_URL` env var). Debug builds still use `http://10.0.2.2:8081/`.
+Distribution: sideload `app-release.apk` for a few testers, or a Play internal-testing track.
 
 ## Secret-handling rules (applies to me too)
 
@@ -69,9 +92,10 @@ Before a hosted run, the app must target the deployed URL instead of the loopbac
 
 ## Minimum checklist for pilot B
 
-1. Managed Postgres provisioned; `DB_URL`/`DB_USER`/`DB_PASSWORD` set.
+1. Supabase Postgres provisioned; `DB_URL` (+`?sslmode=require`) / `DB_USER` / `DB_PASSWORD` set.
 2. Strong random `JWT_SECRET` set.
-3. SMS gateway impl added + its key set; `dev-log-code` off.
-4. Backend deployed at a public `https://` URL; `/docs` reachable.
-5. App pointed at that URL (release build), APK distributed.
-6. Seed one admin: `UPDATE users SET is_admin=true WHERE phone='+91…';` (to verify drivers).
+3. `OTP_PROVIDER=msg91` + `MSG91_AUTH_KEY` set (and DLT registered for India delivery).
+4. `PUSH_PROVIDER=fcm` + the `firebase-admin.json` Secret File uploaded.
+5. Backend deployed (Render Blueprint); `/actuator/health` = UP and `/docs` reachable.
+6. Release APK built with `-Pitcabs.baseUrl=https://…`, distributed to testers.
+7. Seed one admin: `UPDATE users SET is_admin=true WHERE phone='+91…';` (to verify drivers).

@@ -1,6 +1,14 @@
+server:
+  # Render (and most PaaS) inject the listen port as PORT; fall back to SERVER_PORT then 8080.
+  port: ${PORT:${SERVER_PORT:8080}}
+  # Let in-flight requests finish on redeploy/restart instead of being cut off.
+  shutdown: graceful
+
 spring:
   application:
     name: itcabs-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/itcabs}
     username: ${DB_USER:postgres}
@@ -17,14 +25,36 @@ itcabs:
     refresh-ttl-days: 30
   otp:
     ttl-seconds: 300
+    # Rate limit: at most max-per-window OTP requests per phone per window-seconds.
+    max-per-window: 5
+    window-seconds: 600
     # Provider: 'dev' logs the code (no SMS); 'msg91' sends via MSG91 Flow.
     provider: ${OTP_PROVIDER:dev}
     # Dev only: OTP is logged, not sent by SMS. Set false in prod.
     dev-log-code: true
     msg91:
       auth-key: ${MSG91_AUTH_KEY:}
-      template-id: ${MSG91_TEMPLATE_ID:}
+      # itcabs_otp template (Sender ID ITCABS). Template ids aren't secret; the auth key is (env only).
+      template-id: ${MSG91_TEMPLATE_ID:6a61b42d1f71589594074812}
+  push:
+    # 'noop' (default, dev/CI) or 'fcm'. FCM needs a service-account credentials file.
+    provider: ${PUSH_PROVIDER:noop}
+    fcm:
+      credentials: ${FIREBASE_CREDENTIALS:}
 
 springdoc:
   swagger-ui:
     path: /docs
+
+# Deploy readiness: expose only /actuator/health (+ liveness/readiness probes) for the load
+# balancer / orchestrator. No internals leaked (show-details never); no other endpoints opened.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never

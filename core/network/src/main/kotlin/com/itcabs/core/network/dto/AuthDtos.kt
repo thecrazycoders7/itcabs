@@ -14,6 +14,7 @@ data class OtpVerifyDto(
     val code: String,
     val role: String? = null,
     val name: String? = null,
+    val deviceId: String? = null,
 )
 
 @Serializable

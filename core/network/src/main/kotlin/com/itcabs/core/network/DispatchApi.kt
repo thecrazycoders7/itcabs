@@ -17,6 +17,9 @@ interface DispatchApi {
     @POST("api/v1/jobs")
     suspend fun postJob(@Body body: PostJobDto): Response<List<LegDto>>
 
+    @POST("api/v1/jobs/{jobId}/repost")
+    suspend fun repost(@Path("jobId") jobId: Long): Response<List<LegDto>>
+
     @GET("api/v1/legs/mine")
     suspend fun myLegs(): Response<List<LegDto>>
 

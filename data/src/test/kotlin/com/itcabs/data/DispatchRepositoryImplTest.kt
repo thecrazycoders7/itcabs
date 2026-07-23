@@ -19,6 +19,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
+// Realtime isn't exercised by these tests (they never collect legEvents), so a dummy that never
+// connects is enough to satisfy the constructor.
+private fun dummyRealtime() =
+    com.itcabs.core.network.RealtimeClient("http://localhost/", { null }, okhttp3.OkHttpClient())
+
 private fun leg(id: Long, status: String, claimedBy: Long? = null) = LegDto(
     id = id, jobId = 1, coordinatorId = 1, office = "O", shift = "S",
     pickup = "P", drop = "D", area = "A", timeWindow = "T", vehicleType = "Sedan",
@@ -31,6 +36,7 @@ private class FakeDispatchApi(
     private val feedResponse: Response<List<LegDto>> = Response.success(listOf(leg(1, "OPEN"))),
 ) : DispatchApi {
     override suspend fun postJob(body: PostJobDto) = Response.success(listOf(leg(1, "OPEN")))
+    override suspend fun repost(jobId: Long) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun myLegs() = feedResponse
     override suspend fun setStatus(id: Long, body: StatusUpdateDto) = Response.success(Unit)
     override suspend fun rate(id: Long, body: RatingDto) = Response.success(Unit)
@@ -53,7 +59,7 @@ class DispatchRepositoryImplTest {
 
     @Test
     fun claim_won_maps_leg_to_domain() = runTest {
-        val repo = DispatchRepositoryImpl(FakeDispatchApi(), FakeLegDao())
+        val repo = DispatchRepositoryImpl(FakeDispatchApi(), FakeLegDao(), dummyRealtime())
 
         val ok = assertIs<AppResult.Ok<*>>(repo.claim(1))
         val claimed = ok.value as com.itcabs.domain.model.Leg
@@ -68,7 +74,7 @@ class DispatchRepositoryImplTest {
             409,
             """{"error":"leg already taken"}""".toResponseBody("application/json".toMediaType()),
         )
-        val repo = DispatchRepositoryImpl(FakeDispatchApi(claimResponse = conflict), FakeLegDao())
+        val repo = DispatchRepositoryImpl(FakeDispatchApi(claimResponse = conflict), FakeLegDao(), dummyRealtime())
 
         val err = assertIs<AppResult.Err>(repo.claim(1))
         assertEquals(409, err.code)
@@ -76,7 +82,7 @@ class DispatchRepositoryImplTest {
 
     @Test
     fun feed_maps_list_and_status() = runTest {
-        val repo = DispatchRepositoryImpl(FakeDispatchApi(), FakeLegDao())
+        val repo = DispatchRepositoryImpl(FakeDispatchApi(), FakeLegDao(), dummyRealtime())
 
         val ok = assertIs<AppResult.Ok<*>>(repo.feed(area = null, vehicleType = null))
         @Suppress("UNCHECKED_CAST")

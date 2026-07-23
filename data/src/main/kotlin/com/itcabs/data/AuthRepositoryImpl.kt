@@ -19,6 +19,7 @@ class AuthRepositoryImpl(
     private val api: AuthApi,
     private val tokens: TokenStore,
     private val userDao: UserDao,
+    private val deviceIds: DeviceIdProvider,
 ) : AuthRepository {
 
     override fun getUserFlow(): Flow<User?> =
@@ -33,7 +34,7 @@ class AuthRepositoryImpl(
         role: UserRole?,
         name: String?,
     ): AppResult<Session> =
-        api.verifyOtp(OtpVerifyDto(phone, code, role?.name, name)).asResult { dto ->
+        api.verifyOtp(OtpVerifyDto(phone, code, role?.name, name, deviceIds.deviceId())).asResult { dto ->
             tokens.save(dto.accessToken, dto.refreshToken)
             dto.toSession()
         }

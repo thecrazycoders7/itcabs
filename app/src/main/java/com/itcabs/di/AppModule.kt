@@ -1,19 +1,27 @@
 package com.itcabs.di
 
 import com.itcabs.core.network.AuthApi
+import com.itcabs.core.network.ChatApi
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.NetworkFactory
+import com.itcabs.core.network.PushApi
+import com.itcabs.core.network.RealtimeClient
+import com.itcabs.PushTokenManager
 import android.content.Context
 import com.itcabs.BuildConfig
+import com.itcabs.PersistentDeviceId
 import com.itcabs.PersistentTokenStore
 import com.itcabs.core.database.LegDao
 import com.itcabs.core.database.UserDao
 import com.itcabs.data.AuthRepositoryImpl
+import com.itcabs.data.ChatRepositoryImpl
+import com.itcabs.data.DeviceIdProvider
 import com.itcabs.data.DispatchRepositoryImpl
 import com.itcabs.data.DriverRepositoryImpl
 import com.itcabs.data.TokenStore
 import com.itcabs.domain.repository.AuthRepository
+import com.itcabs.domain.repository.ChatRepository
 import com.itcabs.domain.repository.DispatchRepository
 import com.itcabs.domain.repository.DriverRepository
 import dagger.Module
@@ -55,8 +63,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun authRepository(api: AuthApi, tokenStore: TokenStore, userDao: UserDao): AuthRepository =
-        AuthRepositoryImpl(api, tokenStore, userDao)
+    fun deviceIdProvider(@ApplicationContext context: Context): DeviceIdProvider =
+        PersistentDeviceId(context)
+
+    @Provides
+    @Singleton
+    fun authRepository(api: AuthApi, tokenStore: TokenStore, userDao: UserDao, deviceIds: DeviceIdProvider): AuthRepository =
+        AuthRepositoryImpl(api, tokenStore, userDao, deviceIds)
 
     @Provides
     @Singleton
@@ -65,6 +78,29 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun dispatchRepository(api: DispatchApi, dao: LegDao): DispatchRepository =
-        DispatchRepositoryImpl(api, dao)
+    fun realtimeClient(tokenStore: TokenStore): RealtimeClient =
+        NetworkFactory.realtimeClient(BuildConfig.BASE_URL, tokenStore)
+
+    @Provides
+    @Singleton
+    fun pushApi(tokenStore: TokenStore): PushApi =
+        NetworkFactory.pushApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+
+    @Provides
+    @Singleton
+    fun pushTokenManager(api: PushApi): PushTokenManager = PushTokenManager(api)
+
+    @Provides
+    @Singleton
+    fun chatApi(tokenStore: TokenStore): ChatApi =
+        NetworkFactory.chatApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+
+    @Provides
+    @Singleton
+    fun chatRepository(api: ChatApi): ChatRepository = ChatRepositoryImpl(api)
+
+    @Provides
+    @Singleton
+    fun dispatchRepository(api: DispatchApi, dao: LegDao, realtime: RealtimeClient): DispatchRepository =
+        DispatchRepositoryImpl(api, dao, realtime)
 }

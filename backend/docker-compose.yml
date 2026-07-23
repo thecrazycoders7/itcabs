@@ -21,4 +21,15 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       JWT_SECRET: dev-secret-change-me-dev-secret-change-me-32b
+      PUSH_PROVIDER: fcm
+      FIREBASE_CREDENTIALS: /run/secrets/firebase-admin.json
+    # Mount the gitignored service-account key at runtime (kept out of the image via .dockerignore).
+    volumes:
+      - ./secrets/firebase-admin.json:/run/secrets/firebase-admin.json:ro
     ports: ["8081:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s

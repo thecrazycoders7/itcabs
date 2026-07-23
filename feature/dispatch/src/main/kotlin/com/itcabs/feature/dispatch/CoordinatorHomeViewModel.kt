@@ -39,6 +39,9 @@ class CoordinatorHomeViewModel @Inject constructor(
                 }
             }
         }
+        // Realtime (ADR-0008): a driver claiming/updating a leg pushes an event → re-fetch, so the
+        // dashboard flips OPEN→CLAIMED live without a manual Refresh.
+        viewModelScope.launch { dispatch.legEvents().collect { refresh() } }
         refresh()
     }
 
@@ -47,6 +50,17 @@ class CoordinatorHomeViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = dispatch.myLegs()) {
                 is AppResult.Ok -> _state.update { it.copy(loading = false) }
+                is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
+    /** Repost a job's route as a fresh OPEN job (M6). Realtime + refresh surface the new legs. */
+    fun repost(jobId: Long) {
+        _state.update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.repostJob(jobId)) {
+                is AppResult.Ok -> refresh()
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
             }
         }

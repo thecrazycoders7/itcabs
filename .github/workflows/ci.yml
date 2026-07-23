@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (build + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      # Testcontainers spins up Postgres via Docker, which ubuntu-latest provides.
+      - name: Build + test
+        working-directory: backend
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build --no-daemon --stacktrace
+
+  android:
+    name: Android (assemble + unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      # google-services.json is gitignored (public repo); CI writes it from a base64 repo secret.
+      # Add secret GOOGLE_SERVICES_JSON = base64 of app/google-services.json.
+      - name: Provision google-services.json
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > app/google-services.json; fi
+      - name: Assemble debug + unit tests
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug testDebugUnitTest --no-daemon --stacktrace

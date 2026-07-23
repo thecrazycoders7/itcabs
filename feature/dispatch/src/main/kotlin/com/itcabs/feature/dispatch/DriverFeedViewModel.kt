@@ -47,6 +47,8 @@ class DriverFeedViewModel @Inject constructor(
         viewModelScope.launch {
             (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus) } }
         }
+        // Realtime (ADR-0008): a newly posted (or claimed) leg pushes an event → re-fetch the feed.
+        viewModelScope.launch { dispatch.legEvents().collect { refresh() } }
         refresh()
     }
 

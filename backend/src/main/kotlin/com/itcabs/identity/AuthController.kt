@@ -6,7 +6,13 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.web.bind.annotation.*
 
 data class OtpRequest(val phone: String)
-data class OtpVerify(val phone: String, val code: String, val role: String? = null, val name: String? = null)
+data class OtpVerify(
+    val phone: String,
+    val code: String,
+    val role: String? = null,
+    val name: String? = null,
+    val deviceId: String? = null,
+)
 data class RefreshRequest(val refreshToken: String)
 
 @RestController
@@ -23,7 +29,7 @@ class AuthController(
 
     @PostMapping("/otp/verify")
     fun verify(@RequestBody body: OtpVerify): Tokens =
-        identity.verifyOtp(body.phone, body.code, body.role, body.name)
+        identity.verifyOtp(body.phone, body.code, body.role, body.name, body.deviceId)
 
     /** Exchange a refresh token for a fresh access token (access JWTs expire in 15 min). */
     @PostMapping("/refresh")

@@ -34,10 +34,10 @@ class DevLogOtpSender(
  * MSG91 sender: delivers our own generated code via an MSG91 Flow template variable. Active only
  * when itcabs.otp.provider=msg91, so it's a drop-in — set the env and nothing else changes.
  *
- * ponytail: uses the JDK HttpClient (no new dependency). The template variable key (here "otp")
- * must match the variable defined in the MSG91 template. Inputs are controlled (our 6-digit code,
- * digit-filtered phone) so the inline JSON is safe. NOT exercised against the live API yet — wire
- * a real MSG91 account (MSG91_AUTH_KEY + MSG91_TEMPLATE_ID) to validate end to end.
+ * ponytail: uses the JDK HttpClient (no new dependency). The template variable key ("OTP") matches
+ * the `##OTP##` variable in the itcabs_otp MSG91 template. Inputs are controlled (our 6-digit code,
+ * digit-filtered phone) so the inline JSON is safe. Enable with OTP_PROVIDER=msg91 + MSG91_AUTH_KEY.
+ * Live delivery in India also needs DLT registration on the MSG91 sender/template.
  */
 @Component
 @ConditionalOnProperty(name = ["itcabs.otp.provider"], havingValue = "msg91")
@@ -50,7 +50,7 @@ class Msg91OtpSender(
 
     override fun send(phone: String, code: String) {
         val mobile = phone.filter(Char::isDigit) // MSG91 wants digits incl. country code
-        val body = """{"template_id":"$templateId","recipients":[{"mobiles":"$mobile","otp":"$code"}]}"""
+        val body = """{"template_id":"$templateId","recipients":[{"mobiles":"$mobile","OTP":"$code"}]}"""
         val req = HttpRequest.newBuilder()
             .uri(URI.create("https://control.msg91.com/api/v5/flow/"))
             .header("authkey", authKey)

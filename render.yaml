@@ -1,0 +1,36 @@
+# Render Blueprint for the ITCABS backend.
+# Import via Render → New → Blueprint, pointed at this repo. Secrets (sync:false) are entered in
+# the Render dashboard — never committed. Postgres lives on Supabase (set DB_* below).
+services:
+  - type: web
+    name: itcabs-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter          # 'free' spins down when idle (kills the WebSocket); 'starter' stays warm
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # --- Postgres (Supabase → Settings → Database → Session pooler / direct, add ?sslmode=require) ---
+      - key: DB_URL          # e.g. jdbc:postgresql://<host>:5432/postgres?sslmode=require
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD     # secret
+        sync: false
+      # --- Auth ---
+      - key: JWT_SECRET      # secret, ≥32 random bytes (NOT the dev default)
+        sync: false
+      # --- SMS OTP (MSG91) ---
+      - key: OTP_PROVIDER
+        value: msg91
+      - key: MSG91_AUTH_KEY  # secret
+        sync: false
+      # MSG91_TEMPLATE_ID defaults to the approved itcabs_otp template in application.yml.
+      # --- Push (FCM) ---
+      - key: PUSH_PROVIDER
+        value: fcm
+      # Upload the service-account JSON as a Render "Secret File" named firebase-admin.json;
+      # Render mounts it at /etc/secrets/firebase-admin.json.
+      - key: FIREBASE_CREDENTIALS
+        value: /etc/secrets/firebase-admin.json
