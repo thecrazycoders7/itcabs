@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
+    id("com.google.firebase.appdistribution")
 }
 
 android {
@@ -57,6 +58,17 @@ android {
                 ?: System.getenv("ITCABS_BASE_URL")
                 ?: "https://REPLACE-WITH-HOSTED-URL/"
             buildConfigField("String", "BASE_URL", "\"$releaseBaseUrl\"")
+
+            // Firebase App Distribution: upload this build to testers with
+            //   ./gradlew assembleRelease appDistributionUploadRelease -Pitcabs.baseUrl=...
+            // Auth via the gitignored service-account key (also usable via FIREBASE_CREDENTIALS env).
+            firebaseAppDistribution {
+                appId = "1:570929271382:android:567a67a55e70f8713d21f7"
+                serviceCredentialsFile = System.getenv("FIREBASE_CREDENTIALS")
+                    ?: rootProject.file("backend/secrets/firebase-admin.json").path
+                groups = "testers"
+                releaseNotes = "ITCABS pilot build"
+            }
         }
     }
 }
