@@ -3,9 +3,17 @@ package com.itcabs
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BarChart
@@ -30,6 +38,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itcabs.core.designsystem.ItCabsTheme
 import com.itcabs.domain.model.UserRole
@@ -64,13 +75,30 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ItCabsApp(root: RootViewModel = hiltViewModel()) {
     val state by root.state.collectAsState()
-    when (val s = state) {
-        RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-        RootState.SignedOut -> AuthScreen(
-            webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
-            onSignedIn = { role -> root.onSignedIn(role) },
+    // Gentle fade between loading / auth / home so the session gate doesn't snap.
+    Crossfade(targetState = state, animationSpec = tween(250), label = "root") { s ->
+        when (s) {
+            RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+            RootState.SignedOut -> AuthScreen(
+                webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+                onSignedIn = { role -> root.onSignedIn(role) },
+            )
+            is RootState.SignedIn -> RoleHome(role = s.role, isAdmin = s.isAdmin, onSignOut = { root.signOut() })
+        }
+    }
+}
+
+/** Brand mark + title for the top bars: the itcabs logo beside the screen name. */
+@Composable
+private fun LogoTitle(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Image(
+            painter = painterResource(R.drawable.itcabs_logo),
+            contentDescription = null,
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)),
         )
-        is RootState.SignedIn -> RoleHome(role = s.role, isAdmin = s.isAdmin, onSignOut = { root.signOut() })
+        Spacer(Modifier.width(10.dp))
+        Text(text)
     }
 }
 
@@ -95,7 +123,7 @@ private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = { LogoTitle(title) },
                 actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
             )
         },
@@ -122,8 +150,8 @@ private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
             }
         },
     ) { padding ->
-        Box(Modifier.padding(padding)) {
-            when (tab) {
+        Crossfade(targetState = tab, animationSpec = tween(200), modifier = Modifier.padding(padding), label = "coordTab") { t ->
+            when (t) {
                 0 -> CoordinatorHomeScreen()
                 1 -> StatsScreen()
                 else -> AdminScreen()
@@ -145,7 +173,7 @@ private fun DriverHome(onSignOut: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = { LogoTitle(title) },
                 actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
             )
         },
@@ -172,8 +200,8 @@ private fun DriverHome(onSignOut: () -> Unit) {
             }
         },
     ) { padding ->
-        Box(Modifier.padding(padding)) {
-            when (tab) {
+        Crossfade(targetState = tab, animationSpec = tween(200), modifier = Modifier.padding(padding), label = "driverTab") { t ->
+            when (t) {
                 0 -> DriverFeedScreen()
                 1 -> MyTripsScreen()
                 else -> ProfileScreen(onSignOut = onSignOut)

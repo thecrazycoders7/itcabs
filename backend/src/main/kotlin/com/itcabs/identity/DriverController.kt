@@ -1,5 +1,6 @@
 package com.itcabs.identity
 
+import com.itcabs.push.PushService
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -15,9 +16,12 @@ data class KycInput(
     val photoUrl: String,
 )
 
+/** Admin reject payload: an optional reason shown to the driver so they know what to fix. */
+data class RejectInput(val reason: String? = null)
+
 @RestController
 @RequestMapping("/api/v1")
-class DriverController(private val db: NamedParameterJdbcTemplate) {
+class DriverController(private val db: NamedParameterJdbcTemplate, private val push: PushService) {
 
     /** Driver submits KYC. Status starts PENDING; a human/admin verifies (below). */
     @PostMapping("/driver/kyc")
@@ -43,7 +47,7 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
     fun myProfile(req: HttpServletRequest): Map<String, Any?> {
         val uid = requireUserId(req)
         val row = db.queryForList(
-            "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows FROM driver_profiles WHERE user_id = :u",
+            "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows, rejection_reason FROM driver_profiles WHERE user_id = :u",
             MapSqlParameterSource("u", uid),
         ).firstOrNull()
         return mapOf(
@@ -52,6 +56,7 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
             "vehicleReg" to row?.get("vehicle_reg"),
             "tripsCompleted" to (row?.get("trips_completed") ?: 0),
             "noShows" to (row?.get("no_shows") ?: 0),
+            "rejectionReason" to row?.get("rejection_reason"),
         )
     }
 
@@ -80,13 +85,18 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
         return mapOf("kycStatus" to "VERIFIED")
     }
 
-    /** Admin: reject a KYC submission (bad/unclear docs). Driver can resubmit — the app shows Complete KYC again. */
+    /** Admin: reject a KYC submission (bad/unclear docs), record the reason, and notify the driver. */
     @PostMapping("/admin/drivers/{id}/reject")
-    fun reject(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+    fun reject(req: HttpServletRequest, @PathVariable id: Long, @RequestBody(required = false) body: RejectInput?): Map<String, Any> {
         requireAdmin(req, db)
+        val reason = body?.reason?.takeIf { it.isNotBlank() }
         db.update(
-            "UPDATE driver_profiles SET kyc_status='REJECTED' WHERE user_id=:id",
-            MapSqlParameterSource("id", id),
+            "UPDATE driver_profiles SET kyc_status='REJECTED', rejection_reason=:r WHERE user_id=:id",
+            MapSqlParameterSource().addValue("r", reason).addValue("id", id),
+        )
+        push.notifyUser(
+            id, "KYC not approved",
+            reason?.let { "Please fix and resubmit: $it" } ?: "Please review your documents and resubmit.",
         )
         return mapOf("kycStatus" to "REJECTED")
     }

@@ -40,7 +40,7 @@ private class FakeDispatchApi(
     override suspend fun postJob(body: PostJobDto) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun repost(jobId: Long) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun myLegs() = feedResponse
-    override suspend fun coordinatorStats() = Response.success(CoordinatorStatsDto())
+    override suspend fun coordinatorStats(days: Int?) = Response.success(CoordinatorStatsDto())
     override suspend fun setStatus(id: Long, body: StatusUpdateDto) = Response.success(Unit)
     override suspend fun noShow(id: Long) = Response.success(Unit)
     override suspend fun markPaid(id: Long) = Response.success(Unit)

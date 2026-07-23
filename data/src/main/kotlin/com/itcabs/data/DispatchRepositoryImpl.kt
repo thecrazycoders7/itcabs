@@ -59,8 +59,8 @@ class DispatchRepositoryImpl(
             legs
         }
 
-    override suspend fun coordinatorStats(): AppResult<CoordinatorStats> =
-        api.coordinatorStats().asResult { dto ->
+    override suspend fun coordinatorStats(days: Int?): AppResult<CoordinatorStats> =
+        api.coordinatorStats(days).asResult { dto ->
             CoordinatorStats(
                 posted = dto.posted, claimed = dto.claimed, completed = dto.completed,
                 cancelled = dto.cancelled, fillRatePct = dto.fillRatePct,

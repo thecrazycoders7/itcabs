@@ -7,6 +7,9 @@ data class DriverProfile(
     val kycStatus: KycStatus,
     val vehicleType: String?,
     val vehicleReg: String?,
+    val tripsCompleted: Int = 0,
+    val noShows: Int = 0,
+    val rejectionReason: String? = null,
 )
 
 /** A driver awaiting KYC approval, shown in the admin review queue. */

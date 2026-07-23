@@ -14,20 +14,20 @@ import retrofit2.Retrofit
 object NetworkFactory {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun authApi(baseUrl: String, session: TokenSession, debug: Boolean = false): AuthApi =
-        retrofit(baseUrl, session, debug).create(AuthApi::class.java)
+    fun authApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): AuthApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(AuthApi::class.java)
 
-    fun dispatchApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DispatchApi =
-        retrofit(baseUrl, session, debug).create(DispatchApi::class.java)
+    fun dispatchApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): DispatchApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(DispatchApi::class.java)
 
-    fun driverApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DriverApi =
-        retrofit(baseUrl, session, debug).create(DriverApi::class.java)
+    fun driverApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): DriverApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(DriverApi::class.java)
 
-    fun pushApi(baseUrl: String, session: TokenSession, debug: Boolean = false): PushApi =
-        retrofit(baseUrl, session, debug).create(PushApi::class.java)
+    fun pushApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): PushApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(PushApi::class.java)
 
-    fun chatApi(baseUrl: String, session: TokenSession, debug: Boolean = false): ChatApi =
-        retrofit(baseUrl, session, debug).create(ChatApi::class.java)
+    fun chatApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): ChatApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(ChatApi::class.java)
 
     /** Supabase GoTrue auth. Base URL = the Supabase project URL; the anon key rides as the apikey header. */
     fun supabaseAuthApi(supabaseUrl: String, anonKey: String): SupabaseAuthApi {
@@ -52,7 +52,7 @@ object NetworkFactory {
         return RealtimeClient(baseUrl, session, client)
     }
 
-    private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
+    private fun retrofit(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
             // Free-tier host spins down when idle; the first request must wait out a ~50s cold start,
             // so give reads generous headroom instead of failing with "network unavailable".
@@ -60,7 +60,7 @@ object NetworkFactory {
             .readTimeout(70, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor(ConnectivityInterceptor()) // outermost: turn connection failures into a 503 result, not a crash
             .addInterceptor(AuthInterceptor(session))
-            .authenticator(TokenAuthenticator(baseUrl, session, json))
+            .authenticator(TokenAuthenticator(supabaseUrl, anonKey, session, json))
             .apply {
                 if (debug) addInterceptor(
                     HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY },

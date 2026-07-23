@@ -50,17 +50,17 @@ object AppModule {
     @Provides
     @Singleton
     fun authApi(tokenStore: TokenStore): AuthApi =
-        NetworkFactory.authApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+        NetworkFactory.authApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
 
     @Provides
     @Singleton
     fun dispatchApi(tokenStore: TokenStore): DispatchApi =
-        NetworkFactory.dispatchApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+        NetworkFactory.dispatchApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
 
     @Provides
     @Singleton
     fun driverApi(tokenStore: TokenStore): DriverApi =
-        NetworkFactory.driverApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+        NetworkFactory.driverApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
 
     @Provides
     @Singleton
@@ -90,7 +90,7 @@ object AppModule {
     @Provides
     @Singleton
     fun pushApi(tokenStore: TokenStore): PushApi =
-        NetworkFactory.pushApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+        NetworkFactory.pushApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
 
     @Provides
     @Singleton
@@ -99,7 +99,7 @@ object AppModule {
     @Provides
     @Singleton
     fun chatApi(tokenStore: TokenStore): ChatApi =
-        NetworkFactory.chatApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+        NetworkFactory.chatApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
 
     @Provides
     @Singleton

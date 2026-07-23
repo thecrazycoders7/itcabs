@@ -26,7 +26,7 @@ interface DispatchApi {
     suspend fun myLegs(): Response<List<LegDto>>
 
     @GET("api/v1/coordinator/stats")
-    suspend fun coordinatorStats(): Response<CoordinatorStatsDto>
+    suspend fun coordinatorStats(@Query("days") days: Int?): Response<CoordinatorStatsDto>
 
     @PATCH("api/v1/legs/{id}/status")
     suspend fun setStatus(@Path("id") id: Long, @Body body: StatusUpdateDto): Response<Unit>

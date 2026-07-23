@@ -6,12 +6,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +44,20 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
         ) {
             Text("Insights", style = MaterialTheme.typography.headlineMedium)
             TextButton(onClick = viewModel::refresh) { Text("Refresh") }
+        }
+
+        // Time-window selector — recomputes the stats for the last 7/30 days or all time.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatsRange.entries.forEach { r ->
+                FilterChip(
+                    selected = state.range == r,
+                    onClick = { viewModel.setRange(r) },
+                    label = { Text(r.label) },
+                )
+            }
         }
 
         state.error?.let {
@@ -80,6 +99,24 @@ private fun StatsBody(s: CoordinatorStats) {
             )
         }
 
+        // Outcome breakdown — a minimal stacked bar so the completed/cancelled/other split is visible at a glance.
+        val other = (s.posted - s.completed - s.cancelled).coerceAtLeast(0)
+        if (s.posted > 0) {
+            Text("Outcome breakdown", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+            Row(
+                Modifier.fillMaxWidth().height(20.dp).clip(MaterialTheme.shapes.small),
+            ) {
+                if (s.completed > 0) Box(Modifier.fillMaxHeight().weight(s.completed.toFloat()).background(MaterialTheme.colorScheme.primary))
+                if (s.cancelled > 0) Box(Modifier.fillMaxHeight().weight(s.cancelled.toFloat()).background(MaterialTheme.colorScheme.error))
+                if (other > 0) Box(Modifier.fillMaxHeight().weight(other.toFloat()).background(MaterialTheme.colorScheme.surfaceVariant))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Legend("Completed ${s.completed}", MaterialTheme.colorScheme.primary)
+                Legend("Cancelled ${s.cancelled}", MaterialTheme.colorScheme.error)
+                Legend("Other $other", MaterialTheme.colorScheme.surfaceVariant)
+            }
+        }
+
         if (s.topDrivers.isNotEmpty()) {
             Text("Top drivers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
             s.topDrivers.forEach { d ->
@@ -96,6 +133,14 @@ private fun StatsBody(s: CoordinatorStats) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun Legend(text: String, color: androidx.compose.ui.graphics.Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

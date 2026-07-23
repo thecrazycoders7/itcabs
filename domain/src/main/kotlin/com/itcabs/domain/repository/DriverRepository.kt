@@ -20,5 +20,5 @@ interface DriverRepository {
     // admin (is_admin only; enforced server-side)
     suspend fun pendingDrivers(): AppResult<List<PendingDriver>>
     suspend fun verifyDriver(driverId: Long): AppResult<Unit>
-    suspend fun rejectDriver(driverId: Long): AppResult<Unit>
+    suspend fun rejectDriver(driverId: Long, reason: String?): AppResult<Unit>
 }

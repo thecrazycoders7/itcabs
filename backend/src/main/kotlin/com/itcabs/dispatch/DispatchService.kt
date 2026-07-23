@@ -190,7 +190,14 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
 
     // --- coordinator analytics (Insights tab) ---
 
-    fun coordinatorStats(coordinatorId: Long): CoordinatorStatsDto {
+    /** [days] limits to trips posted in the last N days; null = all time. */
+    fun coordinatorStats(coordinatorId: Long, days: Int?): CoordinatorStatsDto {
+        val params = MapSqlParameterSource("c", coordinatorId)
+        // Only positive windows filter; anything else means "all time".
+        val since = if (days != null && days > 0) {
+            params.addValue("days", days)
+            " AND created_at >= now() - make_interval(days => :days)"
+        } else ""
         val agg = db.queryForList(
             """SELECT count(*) AS posted,
                       count(*) FILTER (WHERE claimed_by IS NOT NULL)                   AS claimed,
@@ -198,17 +205,17 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                       count(*) FILTER (WHERE status='CANCELLED')                        AS cancelled,
                       coalesce(sum(fare_paise) FILTER (WHERE paid_at IS NOT NULL),0)    AS total_paid,
                       coalesce(sum(fare_paise) FILTER (WHERE status='COMPLETED' AND paid_at IS NULL),0) AS outstanding
-                 FROM legs WHERE coordinator_id = :c""",
-            MapSqlParameterSource("c", coordinatorId),
+                 FROM legs WHERE coordinator_id = :c$since""",
+            params,
         ).first()
         val posted = (agg["posted"] as Number).toInt()
         val claimed = (agg["claimed"] as Number).toInt()
         val topDrivers = db.query(
             """SELECT u.name AS name, count(*) AS trips
                  FROM legs l JOIN users u ON u.id = l.claimed_by
-                WHERE l.coordinator_id = :c AND l.status = 'COMPLETED'
+                WHERE l.coordinator_id = :c AND l.status = 'COMPLETED'${since.replace("created_at", "l.created_at")}
                 GROUP BY u.name ORDER BY trips DESC LIMIT 5""",
-            MapSqlParameterSource("c", coordinatorId),
+            params,
         ) { rs, _ -> TopDriverDto(rs.getString("name") ?: "", rs.getInt("trips")) }
         return CoordinatorStatsDto(
             posted = posted,

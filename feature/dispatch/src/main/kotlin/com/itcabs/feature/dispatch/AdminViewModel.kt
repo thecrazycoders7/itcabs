@@ -42,7 +42,7 @@ class AdminViewModel @Inject constructor(
 
     fun verify(driverId: Long) = act(driverId) { drivers.verifyDriver(it) }
 
-    fun reject(driverId: Long) = act(driverId) { drivers.rejectDriver(it) }
+    fun reject(driverId: Long, reason: String?) = act(driverId) { drivers.rejectDriver(it, reason) }
 
     private fun act(driverId: Long, action: suspend (Long) -> AppResult<Unit>) {
         _state.update { it.copy(error = null) }

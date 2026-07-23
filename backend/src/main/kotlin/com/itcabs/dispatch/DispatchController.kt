@@ -36,7 +36,8 @@ class DispatchController(
     fun myLegs(req: HttpServletRequest) = dispatch.myLegs(requireUserId(req))
 
     @GetMapping("/coordinator/stats")
-    fun coordinatorStats(req: HttpServletRequest) = dispatch.coordinatorStats(requireUserId(req))
+    fun coordinatorStats(req: HttpServletRequest, @RequestParam(required = false) days: Int?) =
+        dispatch.coordinatorStats(requireUserId(req), days)
 
     @PatchMapping("/legs/{id}/status")
     fun setStatus(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: StatusUpdate) {
@@ -72,6 +73,11 @@ class DispatchController(
     fun claim(req: HttpServletRequest, @PathVariable id: Long): LegDto {
         val leg = dispatch.claim(requireUserId(req), id)
         events.legChanged(id)
+        // Close the loop for the coordinator: tell them who took their trip (WS covers foreground only).
+        push.notifyUser(
+            leg.coordinatorId, "Trip claimed",
+            "${leg.claimedByName ?: "A driver"} claimed your ${leg.pickup} → ${leg.drop} trip.",
+        )
         return leg
     }
 

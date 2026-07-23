@@ -76,6 +76,15 @@ class PushService(
         )
     }
 
+    /** Push to a single user's registered devices (KYC decisions, claim alerts, etc.). No-op if none. */
+    fun notifyUser(userId: Long, title: String, body: String) {
+        val tokens = db.queryForList(
+            "SELECT token FROM push_tokens WHERE user_id = :u",
+            MapSqlParameterSource("u", userId), String::class.java,
+        )
+        if (tokens.isNotEmpty()) sender.send(tokens, title, body)
+    }
+
     /**
      * Alert verified drivers that new work is available. ponytail: broadcasts to all verified
      * drivers — scope by area/vehicle/time when relevance and fan-out cost matter (ADR-0008).

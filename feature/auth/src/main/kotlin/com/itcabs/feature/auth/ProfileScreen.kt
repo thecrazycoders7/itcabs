@@ -36,6 +36,7 @@ fun ProfileScreen(
 ) {
     val user by viewModel.user.collectAsState()
     val kyc by viewModel.kyc.collectAsState()
+    val profile by viewModel.profile.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
@@ -72,7 +73,21 @@ fun ProfileScreen(
             InfoRow("Account", user?.status?.name ?: "—")
         }
 
-        kyc?.takeIf { it != KycStatus.NONE }?.let { KycBanner(it) }
+        kyc?.takeIf { it != KycStatus.NONE }?.let { KycBanner(it, profile?.rejectionReason) }
+
+        // Reliability record — a driver's own track history, mirroring what coordinators see.
+        profile?.takeIf { it.tripsCompleted > 0 || it.noShows > 0 }?.let { p ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ReliabilityTile("Trips completed", p.tripsCompleted.toString(), Modifier.weight(1f))
+                ReliabilityTile(
+                    "No-shows", p.noShows.toString(), Modifier.weight(1f),
+                    valueColor = if (p.noShows > 0) MaterialTheme.colorScheme.error else null,
+                )
+            }
+        }
 
         OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -83,21 +98,41 @@ fun ProfileScreen(
 
 /** Verification status banner — tells a driver whether they can claim trips, and why not. */
 @Composable
-private fun KycBanner(status: KycStatus) {
+private fun KycBanner(status: KycStatus, rejectionReason: String? = null) {
     val (bg, fg, text) = when (status) {
         KycStatus.VERIFIED -> Triple(Color(0xFFD7F0DE), Color(0xFF0F5C2E), "Verified — you can claim trips")
         KycStatus.PENDING -> Triple(Color(0xFFFDECC8), Color(0xFF7A5200), "Verification pending — you can't claim trips yet")
         KycStatus.REJECTED -> Triple(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer, "Verification rejected — please re-submit KYC")
         KycStatus.NONE -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Complete KYC to start claiming trips")
     }
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(bg)
             .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(text, style = MaterialTheme.typography.bodyMedium, color = fg, fontWeight = FontWeight.SemiBold)
+        // Surface the admin's reason so the driver knows exactly what to fix before resubmitting.
+        if (status == KycStatus.REJECTED && !rejectionReason.isNullOrBlank()) {
+            Text("Reason: $rejectionReason", style = MaterialTheme.typography.bodySmall, color = fg)
+        }
+    }
+}
+
+@Composable
+private fun ReliabilityTile(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = valueColor ?: MaterialTheme.colorScheme.onSurface)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

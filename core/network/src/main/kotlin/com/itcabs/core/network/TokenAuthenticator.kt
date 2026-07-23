@@ -1,7 +1,5 @@
 package com.itcabs.core.network
 
-import com.itcabs.core.network.dto.RefreshDto
-import com.itcabs.core.network.dto.TokensDto
 import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
@@ -18,15 +16,16 @@ interface TokenSession : TokenProvider {
 }
 
 /**
- * On a 401, exchanges the refresh token for a fresh access token and retries the request once,
- * so a live session survives access-token expiry (15 min) without bouncing the user to login.
- * The refresh call uses a bare client (no auth interceptor/authenticator) to avoid recursion.
+ * On a 401, exchanges the Supabase refresh token for a fresh access token (via GoTrue) and retries
+ * the request once, so a live session survives access-token expiry (~1h) without bouncing the user
+ * to login. The refresh call uses a bare client (no auth interceptor/authenticator) to avoid recursion.
  *
  * ponytail: @Synchronized + retry-once handles a pilot. If a burst of parallel requests all 401,
  * add single-flight de-dup so they share one refresh instead of each doing their own.
  */
 class TokenAuthenticator(
-    private val baseUrl: String,
+    private val supabaseUrl: String,
+    private val anonKey: String,
     private val session: TokenSession,
     private val json: Json,
 ) : Authenticator {
@@ -45,19 +44,24 @@ class TokenAuthenticator(
 
         val refresh = session.refreshToken() ?: return null
         val fresh = refreshTokens(refresh) ?: return null
-        session.save(fresh.accessToken, fresh.refreshToken)
+        val access = fresh.accessToken ?: return null
+        // GoTrue rotates the refresh token; fall back to the old one if it didn't return a new one.
+        session.save(access, fresh.refreshToken ?: refresh)
         return response.request.newBuilder()
-            .header("Authorization", "Bearer ${fresh.accessToken}")
+            .header("Authorization", "Bearer $access")
             .build()
     }
 
-    private fun refreshTokens(refresh: String): TokensDto? = runCatching {
-        val body = json.encodeToString(RefreshDto.serializer(), RefreshDto(refresh))
+    private fun refreshTokens(refresh: String): SupabaseSession? = runCatching {
+        val body = json.encodeToString(RefreshGrant.serializer(), RefreshGrant(refresh))
             .toRequestBody("application/json".toMediaType())
-        val req = Request.Builder().url("${baseUrl}api/v1/auth/refresh").post(body).build()
+        val req = Request.Builder()
+            .url("${supabaseUrl.trimEnd('/')}/auth/v1/token?grant_type=refresh_token")
+            .addHeader("apikey", anonKey)
+            .post(body).build()
         bare.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) null
-            else resp.body?.string()?.let { json.decodeFromString(TokensDto.serializer(), it) }
+            else resp.body?.string()?.let { json.decodeFromString(SupabaseSession.serializer(), it) }
         }
     }.getOrNull()
 

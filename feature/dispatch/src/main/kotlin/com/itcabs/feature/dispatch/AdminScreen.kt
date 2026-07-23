@@ -16,6 +16,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,7 +68,7 @@ fun AdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(state.pending, key = { it.id }) { d ->
-                    PendingDriverCard(d, onVerify = { viewModel.verify(d.id) }, onReject = { viewModel.reject(d.id) })
+                    PendingDriverCard(d, onVerify = { viewModel.verify(d.id) }, onReject = { reason -> viewModel.reject(d.id, reason) })
                 }
             }
         }
@@ -75,14 +76,26 @@ fun AdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun PendingDriverCard(driver: PendingDriver, onVerify: () -> Unit, onReject: () -> Unit) {
+private fun PendingDriverCard(driver: PendingDriver, onVerify: () -> Unit, onReject: (String?) -> Unit) {
     var confirmReject by remember { mutableStateOf(false) }
+    var reason by remember { mutableStateOf("") }
     if (confirmReject) {
         AlertDialog(
             onDismissRequest = { confirmReject = false },
             title = { Text("Reject ${driver.name.ifBlank { "this driver" }}?") },
-            text = { Text("Their KYC is marked rejected. They can resubmit documents from the app.") },
-            confirmButton = { TextButton(onClick = { confirmReject = false; onReject() }) { Text("Reject", color = MaterialTheme.colorScheme.error) } },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("They'll be notified and can resubmit from the app. Add a reason so they know what to fix:")
+                    OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it },
+                        placeholder = { Text("e.g. RC photo unclear") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { confirmReject = false; onReject(reason.trim().ifBlank { null }) }) { Text("Reject", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { confirmReject = false }) { Text("Cancel") } },
         )
     }

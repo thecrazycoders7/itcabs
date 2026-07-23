@@ -3,6 +3,7 @@ package com.itcabs.core.network
 import com.itcabs.core.network.dto.DriverProfileDto
 import com.itcabs.core.network.dto.KycInputDto
 import com.itcabs.core.network.dto.PendingDriverDto
+import com.itcabs.core.network.dto.RejectInputDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -24,5 +25,5 @@ interface DriverApi {
     suspend fun verifyDriver(@Path("id") id: Long): Response<Map<String, String>>
 
     @POST("api/v1/admin/drivers/{id}/reject")
-    suspend fun rejectDriver(@Path("id") id: Long): Response<Map<String, String>>
+    suspend fun rejectDriver(@Path("id") id: Long, @Body body: RejectInputDto): Response<Map<String, String>>
 }

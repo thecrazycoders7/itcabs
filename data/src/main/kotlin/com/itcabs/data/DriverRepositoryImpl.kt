@@ -2,6 +2,7 @@ package com.itcabs.data
 
 import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.dto.KycInputDto
+import com.itcabs.core.network.dto.RejectInputDto
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.DriverProfile
 import com.itcabs.domain.model.KycStatus
@@ -25,6 +26,9 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
             kycStatus = runCatching { KycStatus.valueOf(dto.kycStatus) }.getOrDefault(KycStatus.NONE),
             vehicleType = dto.vehicleType,
             vehicleReg = dto.vehicleReg,
+            tripsCompleted = dto.tripsCompleted,
+            noShows = dto.noShows,
+            rejectionReason = dto.rejectionReason,
         )
     }
 
@@ -38,6 +42,6 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
     override suspend fun verifyDriver(driverId: Long): AppResult<Unit> =
         api.verifyDriver(driverId).asResult { }
 
-    override suspend fun rejectDriver(driverId: Long): AppResult<Unit> =
-        api.rejectDriver(driverId).asResult { }
+    override suspend fun rejectDriver(driverId: Long, reason: String?): AppResult<Unit> =
+        api.rejectDriver(driverId, RejectInputDto(reason)).asResult { }
 }
