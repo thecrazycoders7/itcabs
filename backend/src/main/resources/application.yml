@@ -1,6 +1,12 @@
+server:
+  # Let in-flight requests finish on redeploy/restart instead of being cut off.
+  shutdown: graceful
+
 spring:
   application:
     name: itcabs-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/itcabs}
     username: ${DB_USER:postgres}
@@ -37,3 +43,16 @@ itcabs:
 springdoc:
   swagger-ui:
     path: /docs
+
+# Deploy readiness: expose only /actuator/health (+ liveness/readiness probes) for the load
+# balancer / orchestrator. No internals leaked (show-details never); no other endpoints opened.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
