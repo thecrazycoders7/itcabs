@@ -12,7 +12,13 @@ data class DriverProfileDto(
     val tripsCompleted: Int = 0,
     val noShows: Int = 0,
     val rejectionReason: String? = null,
+    val available: Boolean = true,
+    val avgRating: Double? = null,
+    val ratingCount: Int = 0,
 )
+
+@Serializable
+data class AvailabilityDto(val available: Boolean)
 
 @Serializable
 data class RejectInputDto(val reason: String? = null)

@@ -42,14 +42,18 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         return mapOf("kycStatus" to "PENDING")
     }
 
-    /** The authenticated driver's own KYC status + vehicle. kycStatus is NONE if no profile yet. */
+    /** The authenticated driver's own KYC status + vehicle + reliability + rating. kycStatus NONE if no profile. */
     @GetMapping("/driver/me")
     fun myProfile(req: HttpServletRequest): Map<String, Any?> {
         val uid = requireUserId(req)
         val row = db.queryForList(
-            "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows, rejection_reason FROM driver_profiles WHERE user_id = :u",
+            "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows, rejection_reason, available FROM driver_profiles WHERE user_id = :u",
             MapSqlParameterSource("u", uid),
         ).firstOrNull()
+        val rating = db.queryForList(
+            "SELECT avg(stars)::float AS avg, count(*) AS n FROM ratings WHERE ratee_id = :u",
+            MapSqlParameterSource("u", uid),
+        ).first()
         return mapOf(
             "kycStatus" to (row?.get("kyc_status") ?: "NONE"),
             "vehicleType" to row?.get("vehicle_type"),
@@ -57,6 +61,9 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
             "tripsCompleted" to (row?.get("trips_completed") ?: 0),
             "noShows" to (row?.get("no_shows") ?: 0),
             "rejectionReason" to row?.get("rejection_reason"),
+            "available" to (row?.get("available") ?: true),
+            "avgRating" to rating["avg"],           // null until first rating
+            "ratingCount" to (rating["n"] as Number).toInt(),
         )
     }
 

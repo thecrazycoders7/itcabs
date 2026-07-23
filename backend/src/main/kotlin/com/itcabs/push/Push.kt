@@ -94,7 +94,8 @@ class PushService(
             """SELECT pt.token FROM push_tokens pt
                  JOIN users u ON u.id = pt.user_id
                  JOIN driver_profiles p ON p.user_id = u.id
-                WHERE u.role='DRIVER' AND u.status='ACTIVE' AND p.kyc_status='VERIFIED'""",
+                WHERE u.role='DRIVER' AND u.status='ACTIVE' AND p.kyc_status='VERIFIED'
+                  AND p.available = true""",
             MapSqlParameterSource(), String::class.java,
         )
         if (tokens.isNotEmpty()) sender.send(tokens, "New trip available", "A new trip to $office was just posted.")

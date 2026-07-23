@@ -14,8 +14,11 @@ interface DriverRepository {
         photoUrl: String,
     ): AppResult<Unit>
 
-    /** The signed-in driver's own KYC status + vehicle. */
+    /** The signed-in driver's own KYC status + vehicle + reliability + rating. */
     suspend fun myProfile(): AppResult<DriverProfile>
+
+    /** Toggle whether this driver receives new-trip pushes. */
+    suspend fun setAvailability(available: Boolean): AppResult<Unit>
 
     // admin (is_admin only; enforced server-side)
     suspend fun pendingDrivers(): AppResult<List<PendingDriver>>

@@ -62,6 +62,9 @@ private class FakeDispatchApi(
     override suspend fun areas() = Response.success(emptyList<AreaDto>())
     override suspend fun claim(id: Long) = claimResponse
     override suspend fun setStage(id: Long, body: StageUpdateDto) = Response.success(Unit)
+    override suspend fun upcoming(lat: Double?, lng: Double?) = feedResponse
+    override suspend fun release(id: Long) = Response.success(Unit)
+    override suspend fun driverComplete(id: Long) = Response.success(Unit)
     override suspend fun myClaims() = feedResponse
 }
 

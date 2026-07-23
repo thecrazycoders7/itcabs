@@ -187,12 +187,48 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         if (n == 0) throw forbidden("not your active trip, or trip not claimed")
     }
 
+    /** Driver releases a trip they claimed (breakdown/emergency) — reopens it, no no-show recorded. */
+    @Transactional
+    fun releaseTrip(driverId: Long, legId: Long) {
+        val n = db.update(
+            """UPDATE legs SET status='OPEN', claimed_by=NULL, claimed_at=NULL, pickup_otp=NULL,
+                              trip_stage=NULL, version=version+1
+               WHERE id=:id AND claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')""",
+            MapSqlParameterSource().addValue("id", legId).addValue("d", driverId),
+        )
+        if (n == 0) throw forbidden("not your active trip, or the trip already started")
+    }
+
+    /** Driver marks the trip done after dropping the passenger. Idempotent trips-completed increment. */
+    @Transactional
+    fun driverComplete(driverId: Long, legId: Long) {
+        val n = db.update(
+            "UPDATE legs SET status='COMPLETED', version=version+1 WHERE id=:id AND claimed_by=:d AND status <> 'COMPLETED'",
+            MapSqlParameterSource().addValue("id", legId).addValue("d", driverId),
+        )
+        if (n == 0) throw forbidden("not your trip, or already completed")
+        db.update(
+            "UPDATE driver_profiles SET trips_completed = trips_completed + 1 WHERE user_id = :d",
+            MapSqlParameterSource("d", driverId),
+        )
+    }
+
+    /** Toggle whether this driver receives new-trip pushes. */
+    @Transactional
+    fun setAvailability(driverId: Long, available: Boolean) {
+        db.update(
+            "UPDATE driver_profiles SET available = :a WHERE user_id = :d",
+            MapSqlParameterSource().addValue("a", available).addValue("d", driverId),
+        )
+    }
+
     // --- driver: browse + claim ---
 
-    /** Open legs; with driver coords, nearest-first (legs in unknown areas sort last). */
-    fun feed(area: String?, vehicleType: String?, lat: Double?, lng: Double?): List<LegDto> {
-        // Scheduled jobs stay hidden until their publish_at.
-        val where = StringBuilder("l.status = 'OPEN' AND j.publish_at <= now()")
+    /** Open legs; with driver coords, nearest-first. [upcoming]=true previews scheduled (not-yet-live) legs. */
+    fun feed(area: String?, vehicleType: String?, lat: Double?, lng: Double?, upcoming: Boolean = false): List<LegDto> {
+        // Scheduled jobs stay hidden until their publish_at, except the explicit upcoming preview.
+        val visibility = if (upcoming) "j.publish_at > now()" else "j.publish_at <= now()"
+        val where = StringBuilder("l.status = 'OPEN' AND $visibility")
         val params = MapSqlParameterSource()
         if (!area.isNullOrBlank()) { where.append(" AND l.area = :ar"); params.addValue("ar", area) }
         if (!vehicleType.isNullOrBlank()) { where.append(" AND l.vehicle_type = :vt"); params.addValue("vt", vehicleType) }

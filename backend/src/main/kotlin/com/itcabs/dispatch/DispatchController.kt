@@ -98,6 +98,36 @@ class DispatchController(
         @RequestParam(required = false) lng: Double?,
     ) = dispatch.feed(area, vehicleType, lat, lng)
 
+    /** Scheduled trips not yet live — a preview so drivers can plan their day. */
+    @GetMapping("/legs/upcoming")
+    fun upcoming(
+        @RequestParam(required = false) lat: Double?,
+        @RequestParam(required = false) lng: Double?,
+    ) = dispatch.feed(null, null, lat, lng, upcoming = true)
+
+    /** Driver releases a trip they claimed (no no-show). Reopens it for others. */
+    @PostMapping("/legs/{id}/release")
+    fun release(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+        dispatch.releaseTrip(requireUserId(req), id)
+        events.legChanged(id)
+        push.notifyDriversNewLeg("a released trip")
+        return mapOf("released" to true)
+    }
+
+    /** Driver marks the trip done after drop-off. */
+    @PostMapping("/legs/{id}/complete")
+    fun driverComplete(req: HttpServletRequest, @PathVariable id: Long) {
+        dispatch.driverComplete(requireUserId(req), id)
+        events.legChanged(id)
+    }
+
+    /** Driver toggles availability for new-trip pushes. */
+    @PostMapping("/driver/availability")
+    fun availability(req: HttpServletRequest, @RequestBody body: AvailabilityInput): Map<String, Any> {
+        dispatch.setAvailability(requireUserId(req), body.available)
+        return mapOf("available" to body.available)
+    }
+
     /** Pickable areas (name + centroid) for job posting and filters. */
     @GetMapping("/areas")
     fun areas() = dispatch.areas()

@@ -41,6 +41,28 @@ class MyTripsViewModel @Inject constructor(
         }
     }
 
+    /** Hand a claimed trip back before it starts — no no-show penalty. */
+    fun release(legId: Long) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val r = dispatch.releaseTrip(legId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
+            }
+        }
+    }
+
+    /** Mark the trip done after drop-off (starts the coordinator's settlement clock). */
+    fun complete(legId: Long) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val r = dispatch.driverComplete(legId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
+            }
+        }
+    }
+
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {

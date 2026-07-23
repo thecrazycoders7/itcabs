@@ -18,15 +18,31 @@ import javax.inject.Inject
 data class DriverFeedUiState(
     val area: String = "",
     val legs: List<Leg> = emptyList(),
+    val upcoming: List<Leg> = emptyList(),
     val loading: Boolean = false,
     val claimingId: Long? = null,
     val error: String? = null,
     val notice: String? = null,
     /** null while the driver's verification status is still loading. */
     val kycStatus: KycStatus? = null,
+    val available: Boolean = true,
+    // Feed preferences (client-side): only show trips I can/ want to do.
+    val vehicleFilter: String? = null,
+    val minFareRupees: String = "",
 ) {
     /** Only a verified driver may claim. Allow while status is still unknown (backend re-checks). */
     val canClaim: Boolean get() = kycStatus == null || kycStatus == KycStatus.VERIFIED
+
+    /** Legs after the driver's vehicle + min-fare preferences. */
+    val visibleLegs: List<Leg>
+        get() {
+            val minPaise = (minFareRupees.toLongOrNull() ?: 0) * 100
+            return legs
+                .filter { vehicleFilter == null || it.vehicleType.equals(vehicleFilter, ignoreCase = true) }
+                .filter { it.farePaise >= minPaise }
+        }
+
+    val vehicleOptions: List<String> get() = legs.map { it.vehicleType }.filter { it.isNotBlank() }.distinct()
 }
 
 @HiltViewModel
@@ -59,6 +75,8 @@ class DriverFeedViewModel @Inject constructor(
     }
 
     fun onAreaChange(value: String) = _state.update { it.copy(area = value) }
+    fun onVehicleFilter(v: String?) = _state.update { it.copy(vehicleFilter = v) }
+    fun onMinFare(v: String) = _state.update { it.copy(minFareRupees = v.filter(Char::isDigit)) }
 
     /** Screen supplies device location (coarse is fine — relevance is area-level). */
     fun onLocation(latitude: Double, longitude: Double) {
@@ -67,12 +85,19 @@ class DriverFeedViewModel @Inject constructor(
         refresh()
     }
 
+    /** Go online/offline for new-trip pushes. */
+    fun setAvailable(available: Boolean) {
+        _state.update { it.copy(available = available) }
+        viewModelScope.launch { driver.setAvailability(available) }
+    }
+
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             // Re-check verification too, so approving a driver clears the banner on the next refresh
             // (instead of only after a full app restart).
-            (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus) } }
+            (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus, available = r.value.available) } }
+            (dispatch.upcoming(lat, lng) as? AppResult.Ok)?.let { r -> _state.update { it.copy(upcoming = r.value) } }
             when (val result = dispatch.feed(_state.value.area.ifBlank { null }, null, lat, lng)) {
                 is AppResult.Ok -> _state.update { it.copy(loading = false, legs = sorted(result.value)) }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }

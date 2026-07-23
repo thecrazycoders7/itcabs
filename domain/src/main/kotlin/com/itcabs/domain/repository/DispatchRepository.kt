@@ -57,6 +57,13 @@ interface DispatchRepository {
     /** Err(409) => leg already taken. */
     suspend fun claim(legId: Long): AppResult<Leg>
 
+    /** Scheduled trips not yet live — a plan-ahead preview (can't claim until live). */
+    suspend fun upcoming(lat: Double? = null, lng: Double? = null): AppResult<List<Leg>>
+    /** Driver hands a claimed trip back (no no-show). */
+    suspend fun releaseTrip(legId: Long): AppResult<Unit>
+    /** Driver marks the trip done after drop-off. */
+    suspend fun driverComplete(legId: Long): AppResult<Unit>
+
     /** Driver reports live progress; STARTED requires the passenger's pickup [otp]. */
     suspend fun setStage(legId: Long, stage: String, otp: String? = null): AppResult<Unit>
 

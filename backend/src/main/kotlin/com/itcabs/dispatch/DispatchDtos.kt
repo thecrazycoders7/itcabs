@@ -34,6 +34,7 @@ data class EditLegInput(
 )
 
 data class AssignInput(val driverId: Long)
+data class AvailabilityInput(val available: Boolean)
 
 data class LegDto(
     val id: Long,

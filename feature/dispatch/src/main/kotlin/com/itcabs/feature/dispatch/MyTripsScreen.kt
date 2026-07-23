@@ -22,8 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -119,6 +121,8 @@ fun MyTripsScreen(viewModel: MyTripsViewModel = hiltViewModel()) {
                         trip,
                         onChat = { chatLegId = trip.id },
                         onStage = { stage, otp -> viewModel.setStage(trip.id, stage, otp) },
+                        onRelease = { viewModel.release(trip.id) },
+                        onComplete = { viewModel.complete(trip.id) },
                     )
                 }
             }
@@ -141,8 +145,10 @@ private fun stageLabel(stage: String?): String? = when (stage) {
     else -> null
 }
 
+private const val SUPPORT_PHONE = "112" // pilot: national emergency; swap for the ops desk line later
+
 @Composable
-private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String, String?) -> Unit) {
+private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String, String?) -> Unit, onRelease: () -> Unit, onComplete: () -> Unit) {
     val context = LocalContext.current
     var askOtp by remember { mutableStateOf(false) }
     if (askOtp) {
@@ -227,13 +233,35 @@ private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String, String?) -
         stageLabel(trip.tripStage)?.let {
             Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
-        // Chat with the coordinator + report live progress on an active trip (M7 + trip status).
+        val active = trip.status == LegStatus.CLAIMED || trip.status == LegStatus.CONFIRMED
+        // Navigate + SOS on an active trip: open Maps to the pickup, or dial support in an emergency.
+        if (active) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = {
+                    // geo: query opens whatever nav app the driver has — no Maps API key needed.
+                    val q = Uri.encode(if (trip.tripStage == "STARTED") trip.drop else trip.pickup)
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$q")))
+                }) {
+                    Icon(Icons.Filled.Navigation, null, Modifier.size(16.dp)); Text(" Navigate")
+                }
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$SUPPORT_PHONE"))) }) {
+                    Icon(Icons.Filled.Warning, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                    Text(" SOS", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        // Chat + release + live-progress / complete.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onChat) { Text("Chat") }
-            if (trip.status == LegStatus.CLAIMED || trip.status == LegStatus.CONFIRMED) {
+            // Release before the trip starts — an honest bail-out with no no-show hit.
+            if (active && trip.tripStage != "STARTED") {
+                TextButton(onClick = onRelease) { Text("Release", color = MaterialTheme.colorScheme.error) }
+            }
+            if (trip.tripStage == "STARTED") {
+                androidx.compose.material3.Button(onClick = onComplete, shape = MaterialTheme.shapes.small) { Text("Complete") }
+            } else if (active) {
                 nextStage(trip.tripStage)?.let { (stage, label) ->
                     androidx.compose.material3.Button(
-                        // Starting the trip requires the passenger's pickup code → open the OTP dialog.
                         onClick = { if (stage == "STARTED") askOtp = true else onStage(stage, null) },
                         shape = MaterialTheme.shapes.small,
                     ) { Text(label) }

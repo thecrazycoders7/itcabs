@@ -1,6 +1,7 @@
 package com.itcabs.data
 
 import com.itcabs.core.network.DriverApi
+import com.itcabs.core.network.dto.AvailabilityDto
 import com.itcabs.core.network.dto.KycInputDto
 import com.itcabs.core.network.dto.RejectInputDto
 import com.itcabs.domain.AppResult
@@ -29,8 +30,14 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
             tripsCompleted = dto.tripsCompleted,
             noShows = dto.noShows,
             rejectionReason = dto.rejectionReason,
+            available = dto.available,
+            avgRating = dto.avgRating,
+            ratingCount = dto.ratingCount,
         )
     }
+
+    override suspend fun setAvailability(available: Boolean): AppResult<Unit> =
+        api.setAvailability(AvailabilityDto(available)).asResult { }
 
     override suspend fun pendingDrivers(): AppResult<List<PendingDriver>> =
         api.pendingDrivers().asResult { list ->

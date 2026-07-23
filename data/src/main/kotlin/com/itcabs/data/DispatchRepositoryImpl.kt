@@ -144,6 +144,16 @@ class DispatchRepositoryImpl(
     override suspend fun setStage(legId: Long, stage: String, otp: String?): AppResult<Unit> =
         api.setStage(legId, StageUpdateDto(stage, otp)).asResult { }
 
+    override suspend fun upcoming(lat: Double?, lng: Double?): AppResult<List<Leg>> =
+        // Preview only — not cached into the feed's Room table (would pollute the claimable feed).
+        api.upcoming(lat, lng).asResult { dtos -> dtos.map(LegDto::toDomain) }
+
+    override suspend fun releaseTrip(legId: Long): AppResult<Unit> =
+        api.release(legId).asResult { }
+
+    override suspend fun driverComplete(legId: Long): AppResult<Unit> =
+        api.driverComplete(legId).asResult { }
+
     override suspend fun myClaims(): AppResult<List<Leg>> =
         api.myClaims().asResult { dtos ->
             val legs = dtos.map(LegDto::toDomain)

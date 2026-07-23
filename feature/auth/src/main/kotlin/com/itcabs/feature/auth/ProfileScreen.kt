@@ -75,8 +75,8 @@ fun ProfileScreen(
 
         kyc?.takeIf { it != KycStatus.NONE }?.let { KycBanner(it, profile?.rejectionReason) }
 
-        // Reliability record — a driver's own track history, mirroring what coordinators see.
-        profile?.takeIf { it.tripsCompleted > 0 || it.noShows > 0 }?.let { p ->
+        // Reliability record — a driver's own track history + rating, mirroring what coordinators see.
+        profile?.takeIf { it.tripsCompleted > 0 || it.noShows > 0 || it.ratingCount > 0 }?.let { p ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -85,6 +85,11 @@ fun ProfileScreen(
                 ReliabilityTile(
                     "No-shows", p.noShows.toString(), Modifier.weight(1f),
                     valueColor = if (p.noShows > 0) MaterialTheme.colorScheme.error else null,
+                )
+                ReliabilityTile(
+                    "Rating",
+                    if (p.ratingCount > 0 && p.avgRating != null) "★ %.1f".format(p.avgRating) else "—",
+                    Modifier.weight(1f),
                 )
             }
         }

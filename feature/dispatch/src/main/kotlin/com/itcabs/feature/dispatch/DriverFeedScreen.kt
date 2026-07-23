@@ -28,11 +28,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.runtime.Composable
@@ -96,6 +99,9 @@ fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
         onDismissNotice = viewModel::dismissNotice,
         onClaim = viewModel::claim,
         onCompleteKyc = { showKyc = true },
+        onToggleAvailable = viewModel::setAvailable,
+        onVehicleFilter = viewModel::onVehicleFilter,
+        onMinFare = viewModel::onMinFare,
     )
 }
 
@@ -106,15 +112,20 @@ fun DriverFeedContent(
     onDismissNotice: () -> Unit = {},
     onClaim: (Long) -> Unit = {},
     onCompleteKyc: () -> Unit = {},
+    onToggleAvailable: (Boolean) -> Unit = {},
+    onVehicleFilter: (String?) -> Unit = {},
+    onMinFare: (String) -> Unit = {},
 ) {
+    val visible = state.visibleLegs
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        // Top bar
+        // Top bar with the online/offline switch (gates new-trip notifications).
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -122,6 +133,11 @@ fun DriverFeedContent(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (state.available) "Online" else "Offline", style = MaterialTheme.typography.labelMedium,
+                    color = if (state.available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Switch(checked = state.available, onCheckedChange = onToggleAvailable)
+            }
         }
 
         OutlinedTextField(
@@ -133,6 +149,23 @@ fun DriverFeedContent(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
 
+        // Preferences: filter by vehicle + minimum fare so I only see trips worth my time.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilterChip(selected = state.vehicleFilter == null, onClick = { onVehicleFilter(null) }, label = { Text("All") })
+            state.vehicleOptions.forEach { v ->
+                FilterChip(selected = state.vehicleFilter == v, onClick = { onVehicleFilter(v) }, label = { Text(v) })
+            }
+            OutlinedTextField(
+                value = state.minFareRupees, onValueChange = onMinFare,
+                placeholder = { Text("Min ₹") }, singleLine = true,
+                modifier = Modifier.width(96.dp),
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -140,7 +173,7 @@ fun DriverFeedContent(
         ) {
             Text("Nearby Jobs", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "${state.legs.size} AVAILABLE",
+                "${visible.size} AVAILABLE",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -166,20 +199,30 @@ fun DriverFeedContent(
             )
         }
 
-        if (state.loading && state.legs.isEmpty()) {
+        if (state.loading && visible.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                items(state.legs, key = { it.id }) { leg ->
+                items(visible, key = { it.id }) { leg ->
                     LegCard(
                         leg = leg,
                         claiming = state.claimingId == leg.id,
                         canClaim = state.canClaim,
                         onClaim = { onClaim(leg.id) },
                     )
+                }
+                // Scheduled trips — plan-ahead preview; not claimable until they go live.
+                if (state.upcoming.isNotEmpty()) {
+                    item {
+                        Text("Upcoming (scheduled)", style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    items(state.upcoming, key = { "up-${it.id}" }) { leg ->
+                        LegCard(leg = leg, claiming = false, canClaim = false, onClaim = {}, upcoming = true)
+                    }
                 }
             }
         }
@@ -230,7 +273,7 @@ private fun VerificationBanner(status: KycStatus) {
 }
 
 @Composable
-private fun LegCard(leg: Leg, claiming: Boolean, canClaim: Boolean, onClaim: () -> Unit) {
+private fun LegCard(leg: Leg, claiming: Boolean, canClaim: Boolean, onClaim: () -> Unit, upcoming: Boolean = false) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -284,15 +327,19 @@ private fun LegCard(leg: Leg, claiming: Boolean, canClaim: Boolean, onClaim: () 
                     Text(leg.vehicleType, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            Button(
-                onClick = onClaim,
-                enabled = !claiming && canClaim,
-                shape = MaterialTheme.shapes.small,
-            ) {
-                if (claiming) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Text("Claim Trip", style = MaterialTheme.typography.titleLarge)
+            if (upcoming) {
+                Text("Scheduled", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Button(
+                    onClick = onClaim,
+                    enabled = !claiming && canClaim,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    if (claiming) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text("Claim Trip", style = MaterialTheme.typography.titleLarge)
+                    }
                 }
             }
         }

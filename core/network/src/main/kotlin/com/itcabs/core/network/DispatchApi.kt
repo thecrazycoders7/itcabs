@@ -87,4 +87,13 @@ interface DispatchApi {
 
     @GET("api/v1/legs/claimed")
     suspend fun myClaims(): Response<List<LegDto>>
+
+    @GET("api/v1/legs/upcoming")
+    suspend fun upcoming(@Query("lat") lat: Double? = null, @Query("lng") lng: Double? = null): Response<List<LegDto>>
+
+    @POST("api/v1/legs/{id}/release")
+    suspend fun release(@Path("id") id: Long): Response<Unit>
+
+    @POST("api/v1/legs/{id}/complete")
+    suspend fun driverComplete(@Path("id") id: Long): Response<Unit>
 }
