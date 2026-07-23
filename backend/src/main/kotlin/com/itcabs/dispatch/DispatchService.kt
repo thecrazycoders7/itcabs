@@ -114,14 +114,23 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
 
     // --- driver: browse + claim ---
 
-    fun feed(area: String?, vehicleType: String?): List<LegDto> {
+    /** Open legs; with driver coords, nearest-first (legs in unknown areas sort last). */
+    fun feed(area: String?, vehicleType: String?, lat: Double?, lng: Double?): List<LegDto> {
         val where = StringBuilder("l.status = 'OPEN'")
         val params = MapSqlParameterSource()
         if (!area.isNullOrBlank()) { where.append(" AND l.area = :ar"); params.addValue("ar", area) }
         if (!vehicleType.isNullOrBlank()) { where.append(" AND l.vehicle_type = :vt"); params.addValue("vt", vehicleType) }
-        where.append(" ORDER BY l.created_at DESC")
-        return legsWhere(where.toString(), params)
+        where.append(
+            if (lat != null && lng != null) " ORDER BY distance_km NULLS LAST, l.created_at DESC"
+            else " ORDER BY l.created_at DESC",
+        )
+        return legsWhere(where.toString(), params, lat, lng)
     }
+
+    /** The pickable area gazetteer (Hyderabad tech corridor for the pilot). */
+    fun areas(): List<Map<String, Any>> = db.queryForList(
+        "SELECT name, lat, lng FROM areas ORDER BY name", MapSqlParameterSource(),
+    ).map { mapOf("name" to it["name"]!!, "lat" to it["lat"]!!, "lng" to it["lng"]!!) }
 
     fun myClaims(driverId: Long) =
         legsWhere("l.claimed_by = :d ORDER BY l.claimed_at DESC", MapSqlParameterSource("d", driverId))
@@ -231,17 +240,31 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
 
     // --- helpers ---
 
-    private fun legsWhere(where: String, params: MapSqlParameterSource): List<LegDto> = db.query(
+    private fun legsWhere(
+        where: String,
+        params: MapSqlParameterSource,
+        lat: Double? = null,
+        lng: Double? = null,
+    ): List<LegDto> = db.query(
+        // distance_km: Haversine from the driver's coords to the leg's area centroid (null when
+        // no coords supplied or the area isn't in the gazetteer). least(1.0,...) guards acos domain.
         """SELECT l.id, l.job_id, l.coordinator_id, j.office, j.shift, l.pickup, l.drop_point,
                   l.area, l.time_window, l.vehicle_type, l.fare_paise, l.seats, l.status,
                   l.claimed_by, u.name as claimed_by_name, l.trip_stage, l.paid_at, l.version,
-                  dp.trips_completed as claimed_by_trips, dp.no_shows as claimed_by_no_shows
+                  dp.trips_completed as claimed_by_trips, dp.no_shows as claimed_by_no_shows,
+                  CASE WHEN CAST(:qlat AS double precision) IS NOT NULL AND a.lat IS NOT NULL THEN
+                      6371 * acos(least(1.0,
+                          cos(radians(:qlat)) * cos(radians(a.lat)) * cos(radians(a.lng) - radians(:qlng))
+                          + sin(radians(:qlat)) * sin(radians(a.lat))))
+                  END as distance_km
              FROM legs l
              JOIN jobs j ON j.id = l.job_id
              LEFT JOIN users u ON u.id = l.claimed_by
              LEFT JOIN driver_profiles dp ON dp.user_id = l.claimed_by
+             LEFT JOIN areas a ON lower(a.name) = lower(l.area)
             WHERE $where""",
-        params, LEG_MAPPER,
+        params.addValue("qlat", lat, java.sql.Types.DOUBLE).addValue("qlng", lng, java.sql.Types.DOUBLE),
+        LEG_MAPPER,
     )
 
     companion object {
@@ -264,6 +287,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                 claimedByName = rs.getString("claimed_by_name"),
                 tripStage = rs.getString("trip_stage"),
                 paid = rs.getObject("paid_at") != null,
+                distanceKm = rs.getObject("distance_km")?.let { (it as Number).toDouble() },
                 claimedByTrips = rs.getObject("claimed_by_trips")?.let { (it as Number).toInt() },
                 claimedByNoShows = rs.getObject("claimed_by_no_shows")?.let { (it as Number).toInt() },
                 version = rs.getInt("version"),

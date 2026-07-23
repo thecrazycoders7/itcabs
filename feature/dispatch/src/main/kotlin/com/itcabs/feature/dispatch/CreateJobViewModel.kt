@@ -18,6 +18,7 @@ import javax.inject.Inject
 data class LegForm(
     val pickup: String = "",
     val drop: String = "",
+    val area: String = "",
     val seats: String = "1",
     val fareRupees: String = "",
 )
@@ -27,6 +28,7 @@ data class CreateJobUiState(
     val shift: String = "",
     val vehicleType: String = "Sedan",
     val legs: List<LegForm> = listOf(LegForm()),
+    val areas: List<String> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
     val published: Boolean = false,
@@ -43,6 +45,15 @@ class CreateJobViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(CreateJobUiState())
     val state: StateFlow<CreateJobUiState> = _state.asStateFlow()
+
+    init {
+        // Load the pickable area list; posting still works if this fails (area stays optional).
+        viewModelScope.launch {
+            (dispatch.areas() as? AppResult.Ok)?.value?.let { list ->
+                _state.update { it.copy(areas = list.map { a -> a.name }) }
+            }
+        }
+    }
 
     fun onOfficeChange(v: String) = _state.update { it.copy(office = v, error = null) }
     fun onShiftChange(v: String) = _state.update { it.copy(shift = v, error = null) }
@@ -73,6 +84,7 @@ class CreateJobViewModel @Inject constructor(
                     NewLeg(
                         pickup = form.pickup,
                         drop = form.drop,
+                        area = form.area,
                         timeWindow = s.shift,
                         vehicleType = s.vehicleType,
                         // rupees → paise, never float in the wire type

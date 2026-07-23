@@ -1,6 +1,7 @@
 package com.itcabs.domain.repository
 
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.Area
 import com.itcabs.domain.model.CoordinatorStats
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
@@ -33,7 +34,10 @@ interface DispatchRepository {
 
     // driver
     fun getFeedFlow(): Flow<List<Leg>>
-    suspend fun feed(area: String?, vehicleType: String?): AppResult<List<Leg>>
+    /** Open legs; pass driver coords for nearest-first ordering + per-leg distance. */
+    suspend fun feed(area: String?, vehicleType: String?, lat: Double? = null, lng: Double? = null): AppResult<List<Leg>>
+    /** The pickable service areas (backend gazetteer). */
+    suspend fun areas(): AppResult<List<Area>>
 
     /** Err(409) => leg already taken. */
     suspend fun claim(legId: Long): AppResult<Leg>

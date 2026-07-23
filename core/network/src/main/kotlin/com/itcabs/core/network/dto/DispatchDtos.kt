@@ -41,6 +41,7 @@ data class LegDto(
     val claimedByName: String? = null,
     val tripStage: String? = null,
     val paid: Boolean = false,
+    val distanceKm: Double? = null,
     val claimedByTrips: Int? = null,
     val claimedByNoShows: Int? = null,
     val version: Int,
@@ -60,6 +61,10 @@ data class CoordinatorStatsDto(
 
 @Serializable
 data class TopDriverDto(val name: String, val trips: Int)
+
+/** GET /areas — a pickable area with its centroid. */
+@Serializable
+data class AreaDto(val name: String, val lat: Double, val lng: Double)
 
 @Serializable
 data class StatusUpdateDto(val status: String)

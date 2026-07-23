@@ -36,6 +36,13 @@ android {
             "GOOGLE_WEB_CLIENT_ID",
             "\"570929271382-11395nr8vthv99hb5r6clnoqjv1veqfu.apps.googleusercontent.com\"",
         )
+        // Google Maps/Places key slot — empty until billing is enabled. Supply at build time:
+        //   -Pitcabs.mapsApiKey=AIza...   (map view + precise geocoding light up when non-empty)
+        buildConfigField(
+            "String",
+            "MAPS_API_KEY",
+            "\"${(findProperty("itcabs.mapsApiKey") as String?) ?: ""}\"",
+        )
     }
     buildFeatures {
         compose = true

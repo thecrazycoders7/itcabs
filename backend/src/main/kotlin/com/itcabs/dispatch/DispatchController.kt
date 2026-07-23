@@ -66,8 +66,16 @@ class DispatchController(
 
     // driver
     @GetMapping("/legs")
-    fun feed(@RequestParam(required = false) area: String?, @RequestParam(required = false) vehicleType: String?) =
-        dispatch.feed(area, vehicleType)
+    fun feed(
+        @RequestParam(required = false) area: String?,
+        @RequestParam(required = false) vehicleType: String?,
+        @RequestParam(required = false) lat: Double?,
+        @RequestParam(required = false) lng: Double?,
+    ) = dispatch.feed(area, vehicleType, lat, lng)
+
+    /** Pickable areas (name + centroid) for job posting and filters. */
+    @GetMapping("/areas")
+    fun areas() = dispatch.areas()
 
     @PostMapping("/legs/{id}/claim")
     fun claim(req: HttpServletRequest, @PathVariable id: Long): LegDto {

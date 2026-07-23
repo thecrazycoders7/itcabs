@@ -1,5 +1,6 @@
 package com.itcabs.core.network
 
+import com.itcabs.core.network.dto.AreaDto
 import com.itcabs.core.network.dto.CoordinatorStatsDto
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
@@ -44,7 +45,12 @@ interface DispatchApi {
     suspend fun feed(
         @Query("area") area: String?,
         @Query("vehicleType") vehicleType: String?,
+        @Query("lat") lat: Double? = null,
+        @Query("lng") lng: Double? = null,
     ): Response<List<LegDto>>
+
+    @GET("api/v1/areas")
+    suspend fun areas(): Response<List<AreaDto>>
 
     @POST("api/v1/legs/{id}/claim")
     suspend fun claim(@Path("id") id: Long): Response<LegDto>

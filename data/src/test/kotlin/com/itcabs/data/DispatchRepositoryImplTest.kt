@@ -5,6 +5,7 @@ import com.itcabs.core.database.LegEntity
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
+import com.itcabs.core.network.dto.AreaDto
 import com.itcabs.core.network.dto.CoordinatorStatsDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
@@ -45,7 +46,8 @@ private class FakeDispatchApi(
     override suspend fun noShow(id: Long) = Response.success(Unit)
     override suspend fun markPaid(id: Long) = Response.success(Unit)
     override suspend fun rate(id: Long, body: RatingDto) = Response.success(Unit)
-    override suspend fun feed(area: String?, vehicleType: String?) = feedResponse
+    override suspend fun feed(area: String?, vehicleType: String?, lat: Double?, lng: Double?) = feedResponse
+    override suspend fun areas() = Response.success(emptyList<AreaDto>())
     override suspend fun claim(id: Long) = claimResponse
     override suspend fun setStage(id: Long, body: StageUpdateDto) = Response.success(Unit)
     override suspend fun myClaims() = feedResponse

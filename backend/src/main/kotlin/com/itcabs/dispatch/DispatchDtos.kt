@@ -34,6 +34,8 @@ data class LegDto(
     val claimedByName: String?,
     val tripStage: String? = null,
     val paid: Boolean = false,
+    /** Km from the requesting driver to this leg's area centroid; null when unknown. */
+    val distanceKm: Double? = null,
     val claimedByTrips: Int? = null,
     val claimedByNoShows: Int? = null,
     val version: Int,

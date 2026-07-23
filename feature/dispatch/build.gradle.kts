@@ -26,6 +26,7 @@ dependencies {
 
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.activity.compose) // runtime permission launcher (location)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

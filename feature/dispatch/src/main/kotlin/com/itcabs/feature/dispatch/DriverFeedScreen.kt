@@ -1,5 +1,13 @@
 package com.itcabs.feature.dispatch
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,7 +34,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,10 +58,32 @@ import com.itcabs.core.designsystem.ItCabsTheme
 /** Money is stored in paise; render as ₹ with no decimals for whole rupees. */
 internal fun formatRupees(paise: Long): String = "₹${paise / 100}"
 
+/** Newest fix among enabled providers — coarse is plenty for area-level relevance. */
+@SuppressLint("MissingPermission")
+private fun lastKnownLocation(context: Context): Location? {
+    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+    return lm.getProviders(true)
+        .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+        .maxByOrNull { it.time }
+}
+
 @Composable
 fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     var showKyc by rememberSaveable { mutableStateOf(false) }
+
+    // Feed relevance: ask for coarse location once; feed turns nearest-first when we have a fix.
+    val context = LocalContext.current
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) lastKnownLocation(context)?.let { viewModel.onLocation(it.latitude, it.longitude) }
+    }
+    LaunchedEffect(Unit) {
+        if (context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            lastKnownLocation(context)?.let { viewModel.onLocation(it.latitude, it.longitude) }
+        } else {
+            askLocation.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
 
     if (showKyc) {
         DriverKycScreen(onDone = { showKyc = false; viewModel.refresh() })
@@ -217,7 +250,19 @@ private fun LegCard(leg: Leg, claiming: Boolean, canClaim: Boolean, onClaim: () 
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
-            StatusChip(leg.area.ifBlank { leg.vehicleType.ifBlank { "OPEN" } })
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Distance from the driver to the leg's area — the "is this worth it?" signal.
+                leg.distanceKm?.let { km ->
+                    Icon(Icons.Filled.NearMe, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        if (km < 10) "%.1f km".format(km) else "${km.toInt()} km",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                StatusChip(leg.area.ifBlank { leg.vehicleType.ifBlank { "OPEN" } })
+            }
         }
 
         // Pickup → drop timeline

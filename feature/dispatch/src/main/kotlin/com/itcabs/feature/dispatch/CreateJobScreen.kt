@@ -17,6 +17,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +95,7 @@ fun CreateJobScreen(
             LegEditor(
                 index = index,
                 leg = leg,
+                areas = state.areas,
                 canRemove = state.legs.size > 1,
                 onChange = { viewModel.updateLeg(index, it) },
                 onRemove = { viewModel.removeLeg(index) },
@@ -132,6 +140,35 @@ private fun SectionLabel(text: String) {
     Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/** Read-only dropdown over the service-area gazetteer. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AreaPicker(selected: String, areas: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("AREA", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            OutlinedTextField(
+                value = selected.ifBlank { "Select area" },
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+            )
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                areas.forEach { name ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = { onSelect(name); expanded = false },
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LabeledField(label: String, value: String, onValueChange: (String) -> Unit, placeholder: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -151,6 +188,7 @@ private fun LabeledField(label: String, value: String, onValueChange: (String) -
 private fun LegEditor(
     index: Int,
     leg: LegForm,
+    areas: List<String>,
     canRemove: Boolean,
     onChange: (LegForm) -> Unit,
     onRemove: () -> Unit,
@@ -170,6 +208,10 @@ private fun LegEditor(
         }
         LabeledField("PICKUP LOCATION", leg.pickup, { onChange(leg.copy(pickup = it)) }, "Pickup point")
         LabeledField("DROP LOCATION", leg.drop, { onChange(leg.copy(drop = it)) }, "Drop point")
+        // Area powers the driver's nearest-first feed — picked from the backend gazetteer.
+        if (areas.isNotEmpty()) {
+            AreaPicker(selected = leg.area, areas = areas, onSelect = { onChange(leg.copy(area = it)) })
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("SEATS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

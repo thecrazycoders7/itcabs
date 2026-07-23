@@ -26,6 +26,7 @@ fun LegDto.toDomain(): Leg = Leg(
     claimedByName = claimedByName,
     tripStage = tripStage,
     paid = paid,
+    distanceKm = distanceKm,
     claimedByTrips = claimedByTrips,
     claimedByNoShows = claimedByNoShows,
     version = version,

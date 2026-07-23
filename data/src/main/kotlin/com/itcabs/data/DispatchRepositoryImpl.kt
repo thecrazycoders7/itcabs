@@ -10,6 +10,7 @@ import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.Area
 import com.itcabs.domain.model.CoordinatorStats
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
@@ -81,8 +82,11 @@ class DispatchRepositoryImpl(
     override suspend fun rate(legId: Long, stars: Int, review: String?): AppResult<Unit> =
         api.rate(legId, RatingDto(stars, review)).asResult { }
 
-    override suspend fun feed(area: String?, vehicleType: String?): AppResult<List<Leg>> =
-        api.feed(area, vehicleType).asResult { dtos ->
+    override suspend fun areas(): AppResult<List<Area>> =
+        api.areas().asResult { dtos -> dtos.map { Area(it.name, it.lat, it.lng) } }
+
+    override suspend fun feed(area: String?, vehicleType: String?, lat: Double?, lng: Double?): AppResult<List<Leg>> =
+        api.feed(area, vehicleType, lat, lng).asResult { dtos ->
             val legs = dtos.map(LegDto::toDomain)
             // SSoT: only clear and replace if it's a "fresh" full feed request.
             // For now, just insert/update to keep it simple.

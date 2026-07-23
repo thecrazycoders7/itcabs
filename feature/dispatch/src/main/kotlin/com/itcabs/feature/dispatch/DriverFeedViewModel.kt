@@ -38,10 +38,19 @@ class DriverFeedViewModel @Inject constructor(
     private val _state = MutableStateFlow(DriverFeedUiState())
     val state: StateFlow<DriverFeedUiState> = _state.asStateFlow()
 
+    // Driver coords (set once the screen obtains location); feed becomes nearest-first.
+    private var lat: Double? = null
+    private var lng: Double? = null
+
+    /** Legs sorted nearest-first when distances are known; unknown areas sink to the bottom. */
+    private fun sorted(legs: List<Leg>): List<Leg> =
+        if (legs.none { it.distanceKm != null }) legs
+        else legs.sortedWith(compareBy(nullsLast()) { it.distanceKm })
+
     init {
         viewModelScope.launch {
             dispatch.getFeedFlow().collect { legs ->
-                _state.update { it.copy(legs = legs) }
+                _state.update { it.copy(legs = sorted(legs)) }
             }
         }
         // Realtime (ADR-0008): a newly posted (or claimed) leg pushes an event → re-fetch the feed.
@@ -51,14 +60,21 @@ class DriverFeedViewModel @Inject constructor(
 
     fun onAreaChange(value: String) = _state.update { it.copy(area = value) }
 
+    /** Screen supplies device location (coarse is fine — relevance is area-level). */
+    fun onLocation(latitude: Double, longitude: Double) {
+        if (lat == latitude && lng == longitude) return
+        lat = latitude; lng = longitude
+        refresh()
+    }
+
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             // Re-check verification too, so approving a driver clears the banner on the next refresh
             // (instead of only after a full app restart).
             (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus) } }
-            when (val result = dispatch.feed(_state.value.area.ifBlank { null }, null)) {
-                is AppResult.Ok -> _state.update { it.copy(loading = false, legs = result.value) }
+            when (val result = dispatch.feed(_state.value.area.ifBlank { null }, null, lat, lng)) {
+                is AppResult.Ok -> _state.update { it.copy(loading = false, legs = sorted(result.value)) }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
             }
         }
