@@ -44,9 +44,6 @@ class DriverFeedViewModel @Inject constructor(
                 _state.update { it.copy(legs = legs) }
             }
         }
-        viewModelScope.launch {
-            (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus) } }
-        }
         // Realtime (ADR-0008): a newly posted (or claimed) leg pushes an event → re-fetch the feed.
         viewModelScope.launch { dispatch.legEvents().collect { refresh() } }
         refresh()
@@ -57,6 +54,9 @@ class DriverFeedViewModel @Inject constructor(
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
+            // Re-check verification too, so approving a driver clears the banner on the next refresh
+            // (instead of only after a full app restart).
+            (driver.myProfile() as? AppResult.Ok)?.let { r -> _state.update { it.copy(kycStatus = r.value.kycStatus) } }
             when (val result = dispatch.feed(_state.value.area.ifBlank { null }, null)) {
                 is AppResult.Ok -> _state.update { it.copy(loading = false, legs = result.value) }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
