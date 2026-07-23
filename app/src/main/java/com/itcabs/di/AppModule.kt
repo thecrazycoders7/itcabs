@@ -7,6 +7,7 @@ import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.NetworkFactory
 import com.itcabs.core.network.PushApi
 import com.itcabs.core.network.RealtimeClient
+import com.itcabs.core.network.SupabaseAuthApi
 import com.itcabs.PushTokenManager
 import android.content.Context
 import com.itcabs.BuildConfig
@@ -68,8 +69,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun authRepository(api: AuthApi, tokenStore: TokenStore, userDao: UserDao, deviceIds: DeviceIdProvider): AuthRepository =
-        AuthRepositoryImpl(api, tokenStore, userDao, deviceIds)
+    fun supabaseAuthApi(): SupabaseAuthApi =
+        NetworkFactory.supabaseAuthApi(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY)
+
+    @Provides
+    @Singleton
+    fun authRepository(api: AuthApi, supabase: SupabaseAuthApi, tokenStore: TokenStore, userDao: UserDao): AuthRepository =
+        AuthRepositoryImpl(api, supabase, tokenStore, userDao)
 
     @Provides
     @Singleton

@@ -63,7 +63,10 @@ private fun ItCabsApp(root: RootViewModel = hiltViewModel()) {
     val state by root.state.collectAsState()
     when (val s = state) {
         RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-        RootState.SignedOut -> AuthScreen(onSignedIn = { role -> root.onSignedIn(role) })
+        RootState.SignedOut -> AuthScreen(
+            webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+            onSignedIn = { role -> root.onSignedIn(role) },
+        )
         is RootState.SignedIn -> RoleHome(role = s.role, onSignOut = { root.signOut() })
     }
 }

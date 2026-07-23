@@ -50,16 +50,17 @@ class RootViewModel @Inject constructor(
     }
 
     /**
-     * Try /auth/me with the persisted access token. If it's expired (401) but a refresh token
-     * exists, refresh once and retry — so a returning user stays signed in past the 15-min
-     * access-token lifetime. (Full auto-refresh on any 401 is a separate follow-up.)
+     * Cold start: if a Supabase session is stored, ask the backend who we are. Onboarded → SignedIn;
+     * authenticated-but-not-onboarded (or no/expired session) → SignedOut, and the AuthScreen picks
+     * up the onboarding step. ponytail: Supabase access tokens expire in ~1h with no auto-refresh
+     * yet — a returning user re-signs-in after that. Add Supabase refresh-token handling later.
      */
     private suspend fun resolve(): RootState {
-        (auth.currentUser() as? AppResult.Ok)?.let { return RootState.SignedIn(it.value.role) }
-        if (auth.refresh() is AppResult.Ok) {
-            (auth.currentUser() as? AppResult.Ok)?.let { return RootState.SignedIn(it.value.role) }
+        if (!auth.hasSession()) return RootState.SignedOut
+        return when (val r = auth.currentUser()) {
+            is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role) } ?: RootState.SignedOut
+            is AppResult.Err -> RootState.SignedOut
         }
-        return RootState.SignedOut
     }
 
     fun onSignedIn(role: UserRole) { _state.value = RootState.SignedIn(role) }

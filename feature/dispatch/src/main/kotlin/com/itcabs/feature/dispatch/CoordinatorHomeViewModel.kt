@@ -32,9 +32,8 @@ class CoordinatorHomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val user = auth.currentUser()
-            if (user is AppResult.Ok) {
-                dispatch.getMyLegsFlow(user.value.id).collect { legs ->
+            (auth.currentUser() as? AppResult.Ok)?.value?.let { user ->
+                dispatch.getMyLegsFlow(user.id).collect { legs ->
                     _state.update { it.copy(legs = legs) }
                 }
             }

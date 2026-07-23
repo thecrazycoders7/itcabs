@@ -29,6 +29,12 @@ android {
             "SUPABASE_ANON_KEY",
             "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indqb3J1bHdqcGpncGV1ZGVjanduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3OTA3MjAsImV4cCI6MjEwMDM2NjcyMH0.-2UBgqBBKYTWcV4Jzo7PMKIdjbdsa4oniDsxYk3cT40\"",
         )
+        // Google sign-in: the Web OAuth client id (public) used by Credential Manager to fetch an ID token.
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"570929271382-11395nr8vthv99hb5r6clnoqjv1veqfu.apps.googleusercontent.com\"",
+        )
     }
     buildFeatures {
         compose = true

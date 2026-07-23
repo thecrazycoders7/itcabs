@@ -1,426 +1,140 @@
 package com.itcabs.feature.auth
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.itcabs.core.designsystem.ItCabsColors
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.itcabs.domain.model.UserRole
-import androidx.compose.ui.tooling.preview.Preview
-import com.itcabs.core.designsystem.ItCabsTheme
+import kotlinx.coroutines.launch
 
 /**
- * The login flow, styled to the IT Cars design (login_screen + otp_verification).
- * Renders [AuthUiState], forwards events to [AuthViewModel], signals [onSignedIn] on success.
+ * Supabase auth: sign in with Google or email/password, then (first time) pick a role and — for
+ * drivers — submit KYC. [webClientId] is the Google Web OAuth client id (from :app BuildConfig).
  */
 @Composable
 fun AuthScreen(
-    onSignedIn: (com.itcabs.domain.model.UserRole) -> Unit,
+    webClientId: String,
+    onSignedIn: (UserRole) -> Unit,
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    AuthContent(
-        state = state,
-        onSignedIn = onSignedIn,
-        onPhoneChange = viewModel::onPhoneChange,
-        requestOtp = viewModel::requestOtp,
-        onCodeChange = viewModel::onCodeChange,
-        onRoleChange = viewModel::onRoleChange,
-        onNameChange = viewModel::onNameChange,
-        verify = viewModel::verify,
-        onVehicleTypeChange = viewModel::onVehicleTypeChange,
-        onVehicleRegChange = viewModel::onVehicleRegChange,
-        onAadhaarChange = viewModel::onAadhaarChange,
-        onRcNumberChange = viewModel::onRcNumberChange,
-        onPhotoUrlChange = viewModel::onPhotoUrlChange,
-        submitKyc = viewModel::submitKyc
-    )
-}
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var localError by remember { mutableStateOf<String?>(null) }
 
-@Composable
-fun AuthContent(
-    state: AuthUiState,
-    onSignedIn: (UserRole) -> Unit = {},
-    onPhoneChange: (String) -> Unit = {},
-    requestOtp: () -> Unit = {},
-    onCodeChange: (String) -> Unit = {},
-    onRoleChange: (UserRole) -> Unit = {},
-    onNameChange: (String) -> Unit = {},
-    verify: () -> Unit = {},
-    onVehicleTypeChange: (String) -> Unit = {},
-    onVehicleRegChange: (String) -> Unit = {},
-    onAadhaarChange: (String) -> Unit = {},
-    onRcNumberChange: (String) -> Unit = {},
-    onPhotoUrlChange: (String) -> Unit = {},
-    submitKyc: () -> Unit = {},
-) {
-    LaunchedEffect(state.signedIn) {
-        if (state.signedIn) state.signedInRole?.let(onSignedIn)
+    if (state.signedIn) onSignedIn(state.signedInRole ?: UserRole.DRIVER)
+
+    fun googleSignIn() {
+        localError = null
+        scope.launch {
+            runCatching {
+                val option = GetGoogleIdOption.Builder()
+                    .setServerClientId(webClientId)
+                    .setFilterByAuthorizedAccounts(false)
+                    .build()
+                val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+                val result = CredentialManager.create(context).getCredential(context, request)
+                val cred = result.credential
+                if (cred is CustomCredential && cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    viewModel.signInWithGoogle(GoogleIdTokenCredential.createFrom(cred.data).idToken)
+                } else {
+                    localError = "Unexpected Google credential"
+                }
+            }.onFailure { localError = it.message ?: "Google sign-in failed" }
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Text("IT Cars", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+
         when (state.step) {
-            AuthUiState.Step.Phone -> LoginStep(state, onPhoneChange, requestOtp)
-            AuthUiState.Step.Code -> OtpStep(state, onCodeChange, onRoleChange, onNameChange, verify)
-            AuthUiState.Step.Kyc -> KycStep(
-                state = state,
-                onVehicleTypeChange = onVehicleTypeChange,
-                onVehicleRegChange = onVehicleRegChange,
-                onAadhaarChange = onAadhaarChange,
-                onRcNumberChange = onRcNumberChange,
-                onPhotoUrlChange = onPhotoUrlChange,
-                submitKyc = submitKyc
-            )
+            AuthUiState.Step.SignIn -> SignIn(state, viewModel, ::googleSignIn)
+            AuthUiState.Step.Onboard -> Onboard(state, viewModel)
+            AuthUiState.Step.Kyc -> Kyc(state, viewModel)
         }
 
         if (state.loading) CircularProgressIndicator()
-        state.error?.let {
+        (state.error ?: localError)?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
 @Composable
-private fun KycStep(
-    state: AuthUiState,
-    onVehicleTypeChange: (String) -> Unit,
-    onVehicleRegChange: (String) -> Unit,
-    onAadhaarChange: (String) -> Unit,
-    onRcNumberChange: (String) -> Unit,
-    onPhotoUrlChange: (String) -> Unit,
-    submitKyc: () -> Unit,
-) {
-    BrandBadge(Icons.Filled.Verified)
-    Text(
-        "Driver KYC",
-        style = MaterialTheme.typography.headlineMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(
-        "Please provide your vehicle and identity details to start claiming trips.",
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-    )
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(
-            value = state.vehicleType,
-            onValueChange = onVehicleTypeChange,
-            label = { Text("Vehicle Type (e.g. Sedan, SUV)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = state.vehicleReg,
-            onValueChange = onVehicleRegChange,
-            label = { Text("Registration Number") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = state.aadhaar,
-            onValueChange = onAadhaarChange,
-            label = { Text("Aadhaar Number") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-        )
-        OutlinedTextField(
-            value = state.rcNumber,
-            onValueChange = onRcNumberChange,
-            label = { Text("RC Number") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        // ponytail: real driver-photo capture/upload is a later feature (image picker + storage
-        // that returns a URL). Until then we don't ask the user for a URL — photoUrl is sent blank.
+private fun SignIn(state: AuthUiState, vm: AuthViewModel, onGoogle: () -> Unit) {
+    Button(onClick = onGoogle, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
+        Text("Sign in with Google")
     }
-
-    val kycComplete = state.vehicleType.isNotBlank() && state.vehicleReg.isNotBlank() &&
-            state.aadhaar.isNotBlank() && state.rcNumber.isNotBlank()
-
-    Button(
-        onClick = submitKyc,
-        enabled = !state.loading && kycComplete,
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
-    ) {
-        Text("Submit KYC", style = MaterialTheme.typography.titleLarge)
-    }
+    Text("or use email", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    OutlinedTextField(
+        value = state.email, onValueChange = vm::onEmailChange, label = { Text("Email") },
+        singleLine = true, modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+    )
+    OutlinedTextField(
+        value = state.password, onValueChange = vm::onPasswordChange, label = { Text("Password") },
+        singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+    )
+    Button(onClick = vm::signInEmail, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
+    TextButton(onClick = vm::signUpEmail, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Create account") }
 }
 
 @Composable
-private fun LoginStep(
-    state: AuthUiState,
-    onPhoneChange: (String) -> Unit,
-    requestOtp: () -> Unit,
-) {
-    BrandBadge(Icons.Filled.DirectionsCar)
-    Text(
-        "Welcome to IT Cars",
-        style = MaterialTheme.typography.headlineMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        textAlign = TextAlign.Center,
-    )
-    Text(
-        "Enter your mobile number to get started with your professional mobility dashboard.",
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-    )
-
-    // Login card
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(
-            "MOBILE NUMBER",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .height(56.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("🇮🇳 +91", style = MaterialTheme.typography.bodyMedium)
-            }
-            OutlinedTextField(
-                value = state.phone,
-                onValueChange = { onPhoneChange(it.filter(Char::isDigit).take(10)) },
-                placeholder = { Text("Enter 10-digit number") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        Button(
-            onClick = requestOtp,
-            enabled = !state.loading && state.phone.length == 10,
-            shape = MaterialTheme.shapes.small,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) {
-            Text("Continue with OTP", style = MaterialTheme.typography.titleLarge)
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.padding(start = 8.dp))
-        }
-    }
-
-    // Value props
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        InfoCard(Icons.Filled.Verified, "Verified Drivers", "Network of pre-vetted mobility experts.", Modifier.weight(1f))
-        InfoCard(Icons.Filled.Analytics, "Fleet Insights", "Real-time tracking and analytics.", Modifier.weight(1f))
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(
-            Icons.Filled.Lock,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            "Secure login powered by phone verification",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun OtpStep(
-    state: AuthUiState,
-    onCodeChange: (String) -> Unit,
-    onRoleChange: (UserRole) -> Unit,
-    onNameChange: (String) -> Unit,
-    verify: () -> Unit,
-) {
-    BrandBadge(Icons.Filled.Shield)
-    Text(
-        "Verify OTP",
-        style = MaterialTheme.typography.headlineMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(
-        "Sent to +91 ${state.phone}",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-
-    OtpBoxes(value = state.code, onValueChange = onCodeChange, modifier = Modifier.fillMaxWidth())
-
-    // New users pick a role + name; returning users keep theirs (backend ignores these then).
+private fun Onboard(state: AuthUiState, vm: AuthViewModel) {
+    Text("Welcome! Tell us who you are.", style = MaterialTheme.typography.titleMedium)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        UserRole.entries.forEach { role ->
-            FilterChip(
-                selected = state.role == role,
-                onClick = { onRoleChange(role) },
-                label = { Text(role.name) },
-            )
-        }
+        FilterChip(state.role == UserRole.COORDINATOR, { vm.onRoleChange(UserRole.COORDINATOR) }, label = { Text("Coordinator") })
+        FilterChip(state.role == UserRole.DRIVER, { vm.onRoleChange(UserRole.DRIVER) }, label = { Text("Driver") })
     }
     OutlinedTextField(
-        value = state.name,
-        onValueChange = onNameChange,
-        label = { Text("Name (new users)") },
-        singleLine = true,
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth(),
+        value = state.name, onValueChange = vm::onNameChange, label = { Text("Your name") },
+        singleLine = true, modifier = Modifier.fillMaxWidth(),
     )
-
-    Button(
-        onClick = verify,
-        enabled = !state.loading && state.code.length == 6,
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
-    ) {
-        Text("Verify", style = MaterialTheme.typography.titleLarge)
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun AuthScreenPhonePreview() {
-    ItCabsTheme {
-        AuthContent(state = AuthUiState(step = AuthUiState.Step.Phone))
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun AuthScreenOtpPreview() {
-    ItCabsTheme {
-        AuthContent(state = AuthUiState(step = AuthUiState.Step.Code, phone = "9988776655"))
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun AuthScreenKycPreview() {
-    ItCabsTheme {
-        AuthContent(state = AuthUiState(step = AuthUiState.Step.Kyc))
-    }
-}
-
-/** The blue rounded-square brand badge used on both auth screens. */
-@Composable
-private fun BrandBadge(icon: ImageVector) {
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .clip(MaterialTheme.shapes.medium)
-            .background(ItCabsColors.Primary),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = ItCabsColors.OnPrimary, modifier = Modifier.size(32.dp))
-    }
+    Button(onClick = vm::onboard, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Continue") }
 }
 
 @Composable
-private fun InfoCard(icon: ImageVector, title: String, body: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-/** Six single-digit boxes backed by one hidden field — the design's OTP input. */
-@Composable
-private fun OtpBoxes(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    BasicTextField(
-        value = value,
-        onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) onValueChange(it) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-        modifier = modifier,
-        decorationBox = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(6) { index ->
-                    val char = value.getOrNull(index)?.toString() ?: ""
-                    val filled = char.isNotEmpty()
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .clip(MaterialTheme.shapes.small)
-                            .border(
-                                width = if (filled) 2.dp else 1.dp,
-                                color = if (filled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                                shape = MaterialTheme.shapes.small,
-                            )
-                            .background(MaterialTheme.colorScheme.surfaceContainerLow),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            char,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-            }
-        },
-    )
+private fun Kyc(state: AuthUiState, vm: AuthViewModel) {
+    Text("Driver details", style = MaterialTheme.typography.titleMedium)
+    OutlinedTextField(state.vehicleType, vm::onVehicleTypeChange, label = { Text("Vehicle type (Sedan/SUV)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(state.vehicleReg, vm::onVehicleRegChange, label = { Text("Registration number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(state.aadhaar, { vm.onAadhaarChange(it.filter(Char::isDigit)) }, label = { Text("Aadhaar number") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+    OutlinedTextField(state.rcNumber, vm::onRcNumberChange, label = { Text("RC number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    Button(onClick = vm::submitKyc, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Submit") }
 }

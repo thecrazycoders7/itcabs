@@ -41,6 +41,24 @@ data class UserDto(
 @Serializable
 data class SentDto(val sent: Boolean = false)
 
+/** GET /auth/me — the domain user if onboarded, else onboarded=false. */
+@Serializable
+data class MeDto(
+    val onboarded: Boolean = false,
+    val id: Long? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val role: String? = null,
+    val name: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class OnboardInputDto(val role: String, val name: String? = null)
+
+@Serializable
+data class OnboardDto(val userId: Long, val role: String, val onboarded: Boolean = true)
+
 @Serializable
 data class KycInputDto(
     val vehicleType: String,

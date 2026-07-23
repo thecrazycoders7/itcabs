@@ -29,6 +29,21 @@ object NetworkFactory {
     fun chatApi(baseUrl: String, session: TokenSession, debug: Boolean = false): ChatApi =
         retrofit(baseUrl, session, debug).create(ChatApi::class.java)
 
+    /** Supabase GoTrue auth. Base URL = the Supabase project URL; the anon key rides as the apikey header. */
+    fun supabaseAuthApi(supabaseUrl: String, anonKey: String): SupabaseAuthApi {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().addHeader("apikey", anonKey).build())
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl(supabaseUrl.trimEnd('/') + "/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(SupabaseAuthApi::class.java)
+    }
+
     /** Realtime leg events (ADR-0008). Own OkHttp client with a ping keepalive for the long-lived socket. */
     fun realtimeClient(baseUrl: String, session: TokenSession): RealtimeClient {
         val client = OkHttpClient.Builder()

@@ -3,7 +3,6 @@ package com.itcabs.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
-import com.itcabs.domain.model.KycStatus
 import com.itcabs.domain.model.UserRole
 import com.itcabs.domain.repository.AuthRepository
 import com.itcabs.domain.repository.DriverRepository
@@ -15,28 +14,24 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Immutable UI state — the only thing the screen renders (UDF, ADR-0007). */
+/** UI state for the Supabase auth flow: sign in → (first time) pick role → (driver) KYC. */
 data class AuthUiState(
-    val phone: String = "",
-    val code: String = "",
+    val email: String = "",
+    val password: String = "",
     val name: String = "",
     val role: UserRole = UserRole.DRIVER,
-    val step: Step = Step.Phone,
+    val step: Step = Step.SignIn,
     val loading: Boolean = false,
     val error: String? = null,
     val signedIn: Boolean = false,
-    // The authoritative role from the backend (a returning user's role may differ from the
-    // one picked in the form). Non-null once signedIn; drives role-based home routing.
     val signedInRole: UserRole? = null,
-
-    // KYC fields
+    // KYC (drivers)
     val vehicleType: String = "",
     val vehicleReg: String = "",
     val aadhaar: String = "",
     val rcNumber: String = "",
-    val photoUrl: String = "",
 ) {
-    enum class Step { Phone, Code, Kyc }
+    enum class Step { SignIn, Onboard, Kyc }
 }
 
 @HiltViewModel
@@ -48,60 +43,85 @@ class AuthViewModel @Inject constructor(
     private val _state = MutableStateFlow(AuthUiState())
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
 
-    fun onPhoneChange(value: String) = _state.update { it.copy(phone = value, error = null) }
-    fun onCodeChange(value: String) = _state.update { it.copy(code = value, error = null) }
-    fun onNameChange(value: String) = _state.update { it.copy(name = value) }
-    fun onRoleChange(role: UserRole) = _state.update { it.copy(role = role) }
+    init {
+        // Returning-but-not-onboarded user already has a Supabase session → jump to onboarding.
+        if (auth.hasSession()) launchLoading { checkOnboarding() }
+    }
 
-    // KYC field changes
+    fun onEmailChange(v: String) = _state.update { it.copy(email = v, error = null) }
+    fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null) }
+    fun onNameChange(v: String) = _state.update { it.copy(name = v) }
+    fun onRoleChange(r: UserRole) = _state.update { it.copy(role = r) }
     fun onVehicleTypeChange(v: String) = _state.update { it.copy(vehicleType = v) }
     fun onVehicleRegChange(v: String) = _state.update { it.copy(vehicleReg = v) }
     fun onAadhaarChange(v: String) = _state.update { it.copy(aadhaar = v) }
     fun onRcNumberChange(v: String) = _state.update { it.copy(rcNumber = v) }
-    fun onPhotoUrlChange(v: String) = _state.update { it.copy(photoUrl = v) }
 
-    /** E.164 form the backend expects; the field holds the 10 national digits, "+91" is the shown prefix. */
-    private fun e164Phone(): String = "+91" + _state.value.phone
-
-    fun requestOtp() = launchLoading {
-        when (val result = auth.requestOtp(e164Phone())) {
-            is AppResult.Ok -> _state.update { it.copy(loading = false, step = AuthUiState.Step.Code) }
-            is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+    /** [idToken] comes from Credential Manager (Google). */
+    fun signInWithGoogle(idToken: String) = launchLoading {
+        when (val r = auth.signInWithGoogle(idToken)) {
+            is AppResult.Ok -> checkOnboarding()
+            is AppResult.Err -> fail(r.message)
         }
     }
 
-    fun verify() = launchLoading {
+    fun signInEmail() = launchLoading {
         val s = _state.value
-        when (val result = auth.verifyOtp(e164Phone(), s.code, s.role, s.name.ifBlank { null })) {
-            is AppResult.Ok -> {
-                val role = result.value.role
-                // A driver still needs KYC unless the backend already has them VERIFIED — otherwise a
-                // returning, already-verified driver would be forced through the KYC form every login.
-                val needsKyc = role == UserRole.DRIVER &&
-                    (driver.myProfile() as? AppResult.Ok)?.value?.kycStatus != KycStatus.VERIFIED
-                if (needsKyc) {
-                    _state.update { it.copy(loading = false, step = AuthUiState.Step.Kyc, signedInRole = role) }
+        when (val r = auth.signInWithEmail(s.email.trim(), s.password)) {
+            is AppResult.Ok -> checkOnboarding()
+            is AppResult.Err -> fail(r.message)
+        }
+    }
+
+    fun signUpEmail() = launchLoading {
+        val s = _state.value
+        when (val r = auth.signUpWithEmail(s.email.trim(), s.password)) {
+            is AppResult.Ok ->
+                if (auth.hasSession()) checkOnboarding()
+                else fail("Account created — check your email to confirm, then sign in.")
+            is AppResult.Err -> fail(r.message)
+        }
+    }
+
+    private suspend fun checkOnboarding() {
+        when (val r = auth.currentUser()) {
+            is AppResult.Ok -> r.value?.let { u ->
+                _state.update { it.copy(loading = false, signedIn = true, signedInRole = u.role) }
+            } ?: _state.update { it.copy(loading = false, step = AuthUiState.Step.Onboard) }
+            is AppResult.Err -> fail(r.message)
+        }
+    }
+
+    fun onboard() = launchLoading {
+        val s = _state.value
+        when (val r = auth.onboard(s.role, s.name.ifBlank { null })) {
+            is AppResult.Ok ->
+                if (s.role == UserRole.DRIVER) {
+                    _state.update { it.copy(loading = false, step = AuthUiState.Step.Kyc, signedInRole = UserRole.DRIVER) }
                 } else {
-                    _state.update { it.copy(loading = false, signedIn = true, signedInRole = role) }
+                    _state.update { it.copy(loading = false, signedIn = true, signedInRole = UserRole.COORDINATOR) }
                 }
-            }
-            is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            is AppResult.Err -> fail(r.message)
         }
     }
 
     fun submitKyc() = launchLoading {
         val s = _state.value
-        when (val result = driver.submitKyc(
-            s.vehicleType, s.vehicleReg,
-            aadhaarRef = "REF_" + s.aadhaar, // mock ref
-            aadhaarMasked = "********" + s.aadhaar.takeLast(4),
-            rcNumberMasked = "********" + s.rcNumber.takeLast(4),
-            photoUrl = s.photoUrl
-        )) {
-            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true) }
-            is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+        when (
+            val r = driver.submitKyc(
+                s.vehicleType, s.vehicleReg,
+                aadhaarRef = "REF_" + s.aadhaar,
+                aadhaarMasked = "********" + s.aadhaar.takeLast(4),
+                rcNumberMasked = "********" + s.rcNumber.takeLast(4),
+                photoUrl = "",
+            )
+        ) {
+            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true, signedInRole = UserRole.DRIVER) }
+            is AppResult.Err -> fail(r.message)
         }
     }
+
+    private fun fail(message: String) = _state.update { it.copy(loading = false, error = message) }
 
     private inline fun launchLoading(crossinline block: suspend () -> Unit) {
         _state.update { it.copy(loading = true, error = null) }
