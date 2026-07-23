@@ -4,7 +4,9 @@ import com.itcabs.core.network.AuthApi
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.DriverApi
 import com.itcabs.core.network.NetworkFactory
+import com.itcabs.core.network.PushApi
 import com.itcabs.core.network.RealtimeClient
+import com.itcabs.PushTokenManager
 import android.content.Context
 import com.itcabs.BuildConfig
 import com.itcabs.PersistentDeviceId
@@ -75,6 +77,15 @@ object AppModule {
     @Singleton
     fun realtimeClient(tokenStore: TokenStore): RealtimeClient =
         NetworkFactory.realtimeClient(BuildConfig.BASE_URL, tokenStore)
+
+    @Provides
+    @Singleton
+    fun pushApi(tokenStore: TokenStore): PushApi =
+        NetworkFactory.pushApi(BuildConfig.BASE_URL, tokenStore, debug = BuildConfig.DEBUG)
+
+    @Provides
+    @Singleton
+    fun pushTokenManager(api: PushApi): PushTokenManager = PushTokenManager(api)
 
     @Provides
     @Singleton

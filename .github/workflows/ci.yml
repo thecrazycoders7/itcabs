@@ -38,6 +38,13 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      # google-services.json is gitignored (public repo); CI writes it from a base64 repo secret.
+      # Add secret GOOGLE_SERVICES_JSON = base64 of app/google-services.json.
+      - name: Provision google-services.json
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > app/google-services.json; fi
       - name: Assemble debug + unit tests
         run: |
           chmod +x ./gradlew

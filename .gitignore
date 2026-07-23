@@ -23,3 +23,8 @@ bin/
 
 # Firebase config — provide per developer, do not commit.
 /app/google-services.json
+
+# Secrets — NEVER commit (public repo)
+**/*firebase-adminsdk*.json
+/backend/secrets/
+*.env

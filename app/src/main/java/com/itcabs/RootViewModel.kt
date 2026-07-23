@@ -22,12 +22,17 @@ sealed interface RootState {
 @HiltViewModel
 class RootViewModel @Inject constructor(
     private val auth: AuthRepository,
+    private val pushTokens: PushTokenManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<RootState>(RootState.Loading)
     val state: StateFlow<RootState> = _state.asStateFlow()
 
     init {
+        // Register this device's FCM token whenever we become signed in (new login or cold start).
+        viewModelScope.launch {
+            state.collect { if (it is RootState.SignedIn) pushTokens.registerCurrentToken() }
+        }
         viewModelScope.launch {
             auth.getUserFlow().collect { user ->
                 if (user != null) {

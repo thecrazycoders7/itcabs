@@ -1,6 +1,7 @@
 package com.itcabs.dispatch
 
 import com.itcabs.identity.requireUserId
+import com.itcabs.push.PushService
 import com.itcabs.realtime.LegWebSocketHandler
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.web.bind.annotation.*
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*
 class DispatchController(
     private val dispatch: DispatchService,
     private val events: LegWebSocketHandler,
+    private val push: PushService,
 ) {
 
     // coordinator
@@ -19,6 +21,7 @@ class DispatchController(
         // re-fetches on the event sees the new rows.
         val legs = dispatch.postJob(requireUserId(req), body)
         legs.forEach { events.legChanged(it.id) }
+        push.notifyDriversNewLeg(body.office) // wake drivers whose app is backgrounded (WS covers foreground)
         return legs
     }
 

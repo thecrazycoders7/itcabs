@@ -23,6 +23,9 @@ object NetworkFactory {
     fun driverApi(baseUrl: String, session: TokenSession, debug: Boolean = false): DriverApi =
         retrofit(baseUrl, session, debug).create(DriverApi::class.java)
 
+    fun pushApi(baseUrl: String, session: TokenSession, debug: Boolean = false): PushApi =
+        retrofit(baseUrl, session, debug).create(PushApi::class.java)
+
     /** Realtime leg events (ADR-0008). Own OkHttp client with a ping keepalive for the long-lived socket. */
     fun realtimeClient(baseUrl: String, session: TokenSession): RealtimeClient {
         val client = OkHttpClient.Builder()

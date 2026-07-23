@@ -33,6 +33,9 @@ dependencies {
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
 
+    // FCM push (Admin SDK). Active only when itcabs.push.provider=fcm.
+    implementation("com.google.firebase:firebase-admin:9.4.1")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:postgresql")

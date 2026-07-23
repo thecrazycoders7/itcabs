@@ -27,6 +27,11 @@ itcabs:
     msg91:
       auth-key: ${MSG91_AUTH_KEY:}
       template-id: ${MSG91_TEMPLATE_ID:}
+  push:
+    # 'noop' (default, dev/CI) or 'fcm'. FCM needs a service-account credentials file.
+    provider: ${PUSH_PROVIDER:noop}
+    fcm:
+      credentials: ${FIREBASE_CREDENTIALS:}
 
 springdoc:
   swagger-ui:
