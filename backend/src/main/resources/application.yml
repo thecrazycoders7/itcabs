@@ -26,7 +26,8 @@ itcabs:
     dev-log-code: true
     msg91:
       auth-key: ${MSG91_AUTH_KEY:}
-      template-id: ${MSG91_TEMPLATE_ID:}
+      # itcabs_otp template (Sender ID ITCABS). Template ids aren't secret; the auth key is (env only).
+      template-id: ${MSG91_TEMPLATE_ID:6a61b42d1f71589594074812}
   push:
     # 'noop' (default, dev/CI) or 'fcm'. FCM needs a service-account credentials file.
     provider: ${PUSH_PROVIDER:noop}
