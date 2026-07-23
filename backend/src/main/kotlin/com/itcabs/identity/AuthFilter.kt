@@ -10,32 +10,53 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
-const val USER_ID_ATTR = "itcabs.userId"
+const val USER_ID_ATTR = "itcabs.userId"    // our internal users.id (Long) — set once onboarded
+const val AUTH_ID_ATTR = "itcabs.authId"    // the Supabase user UUID (String)
+const val EMAIL_ATTR = "itcabs.email"       // the Supabase email (String), if present
 
 /**
- * Extracts + verifies the Bearer token and stashes the user id on the request.
- * Endpoints that need auth call requireUserId(request); public endpoints ignore it.
- * ponytail: lightweight filter instead of full Spring Security for M1; harden in M3.
+ * Verifies the Supabase access token (ES256 via JWKS) and stashes identity on the request:
+ * always the Supabase auth_id + email; plus our internal user id once the user is onboarded and
+ * ACTIVE. Endpoints call requireUserId (onboarded) or requireAuthId (authenticated, pre-onboard).
+ * ponytail: lightweight filter + one users lookup per request; harden/cache in M3 if it matters.
  */
 @Component
-class AuthFilter(private val jwt: JwtService) : OncePerRequestFilter() {
+class AuthFilter(
+    private val supabase: SupabaseJwtVerifier,
+    private val db: NamedParameterJdbcTemplate,
+) : OncePerRequestFilter() {
     override fun doFilterInternal(req: HttpServletRequest, res: HttpServletResponse, chain: FilterChain) {
         req.getHeader("Authorization")?.takeIf { it.startsWith("Bearer ") }?.let { header ->
-            runCatching { jwt.verify(header.removePrefix("Bearer ").trim()) }
-                .onSuccess { req.setAttribute(USER_ID_ATTR, it) }
+            supabase.verify(header.removePrefix("Bearer ").trim())?.let { user ->
+                req.setAttribute(AUTH_ID_ATTR, user.authId)
+                user.email?.let { req.setAttribute(EMAIL_ATTR, it) }
+                // Map to our domain user if onboarded; a BLOCKED user is treated as not-onboarded.
+                db.queryForList(
+                    "SELECT id, status FROM users WHERE auth_id = :a",
+                    MapSqlParameterSource("a", user.authId),
+                ).firstOrNull()?.let { row ->
+                    if (row["status"] != "BLOCKED") req.setAttribute(USER_ID_ATTR, (row["id"] as Number).toLong())
+                }
+            }
         }
         chain.doFilter(req, res)
     }
 }
 
-/** Returns the authenticated user id or throws 401. */
+/** Our internal user id (onboarded + active), or 401. */
 fun requireUserId(req: HttpServletRequest): Long =
     req.getAttribute(USER_ID_ATTR) as? Long ?: throw unauthorized()
 
+/** The Supabase auth_id for an authenticated caller (even before onboarding), or 401. */
+fun requireAuthId(req: HttpServletRequest): String =
+    req.getAttribute(AUTH_ID_ATTR) as? String ?: throw unauthorized()
+
+/** The Supabase email of the caller, if the token carried one. */
+fun emailOf(req: HttpServletRequest): String? = req.getAttribute(EMAIL_ATTR) as? String
+
 /**
  * Returns the authenticated user id, or throws 403 unless they carry the is_admin flag.
- * ponytail: one DB lookup per admin call — fine, admin endpoints are rare. Promote
- * is_admin to a JWT claim only if admin traffic ever gets hot.
+ * ponytail: one DB lookup per admin call — fine, admin endpoints are rare.
  */
 fun requireAdmin(req: HttpServletRequest, db: NamedParameterJdbcTemplate): Long {
     val uid = requireUserId(req)
