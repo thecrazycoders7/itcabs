@@ -1,5 +1,6 @@
 package com.itcabs.core.network.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 // Wire shapes for /api/v1/auth/*. These mirror the backend DTOs exactly; domain mapping
@@ -40,6 +41,25 @@ data class UserDto(
 /** /auth/otp/request returns {"sent": true}. */
 @Serializable
 data class SentDto(val sent: Boolean = false)
+
+/** GET /auth/me — the domain user if onboarded, else onboarded=false. */
+@Serializable
+data class MeDto(
+    val onboarded: Boolean = false,
+    val id: Long? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val role: String? = null,
+    val name: String? = null,
+    val status: String? = null,
+    @SerialName("is_admin") val isAdmin: Boolean = false,
+)
+
+@Serializable
+data class OnboardInputDto(val role: String, val name: String? = null)
+
+@Serializable
+data class OnboardDto(val userId: Long, val role: String, val onboarded: Boolean = true)
 
 @Serializable
 data class KycInputDto(

@@ -22,6 +22,10 @@ data class LegEntity(
     val status: String,
     val claimedBy: Long?,
     val claimedByName: String?,
+    val tripStage: String? = null,
+    val paid: Boolean = false,
+    val claimedByTrips: Int? = null,
+    val claimedByNoShows: Int? = null,
     val version: Int,
 )
 
@@ -41,6 +45,10 @@ fun LegEntity.toDomain() = Leg(
     status = LegStatus.valueOf(status),
     claimedBy = claimedBy,
     claimedByName = claimedByName,
+    tripStage = tripStage,
+    paid = paid,
+    claimedByTrips = claimedByTrips,
+    claimedByNoShows = claimedByNoShows,
     version = version
 )
 
@@ -60,5 +68,9 @@ fun Leg.toEntity() = LegEntity(
     status = status.name,
     claimedBy = claimedBy,
     claimedByName = claimedByName,
+    tripStage = tripStage,
+    paid = paid,
+    claimedByTrips = claimedByTrips,
+    claimedByNoShows = claimedByNoShows,
     version = version
 )

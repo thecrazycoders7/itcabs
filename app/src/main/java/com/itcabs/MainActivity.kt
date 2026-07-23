@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,9 +35,11 @@ import com.itcabs.core.designsystem.ItCabsTheme
 import com.itcabs.domain.model.UserRole
 import com.itcabs.feature.auth.AuthScreen
 import com.itcabs.feature.auth.ProfileScreen
+import com.itcabs.feature.dispatch.AdminScreen
 import com.itcabs.feature.dispatch.CoordinatorHomeScreen
 import com.itcabs.feature.dispatch.DriverFeedScreen
 import com.itcabs.feature.dispatch.MyTripsScreen
+import com.itcabs.feature.dispatch.StatsScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -63,16 +66,69 @@ private fun ItCabsApp(root: RootViewModel = hiltViewModel()) {
     val state by root.state.collectAsState()
     when (val s = state) {
         RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-        RootState.SignedOut -> AuthScreen(onSignedIn = { role -> root.onSignedIn(role) })
-        is RootState.SignedIn -> RoleHome(role = s.role, onSignOut = { root.signOut() })
+        RootState.SignedOut -> AuthScreen(
+            webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+            onSignedIn = { role -> root.onSignedIn(role) },
+        )
+        is RootState.SignedIn -> RoleHome(role = s.role, isAdmin = s.isAdmin, onSignOut = { root.signOut() })
     }
 }
 
 @Composable
-private fun RoleHome(role: UserRole, onSignOut: () -> Unit) {
+private fun RoleHome(role: UserRole, isAdmin: Boolean, onSignOut: () -> Unit) {
     when (role) {
         UserRole.DRIVER -> DriverHome(onSignOut)
-        UserRole.COORDINATOR -> RoleShell("IT Cars Dispatch", onSignOut) { CoordinatorHomeScreen() }
+        UserRole.COORDINATOR -> CoordinatorHome(isAdmin, onSignOut)
+    }
+}
+
+/** Coordinator: My Jobs + Insights, plus an Admin tab (approve drivers) for is_admin users. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
+    var tab by remember { mutableIntStateOf(0) }
+    val title = when (tab) {
+        0 -> "IT Cars Dispatch"
+        1 -> "Insights"
+        else -> "Admin"
+    }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = tab == 0,
+                    onClick = { tab = 0 },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                    label = { Text("My Jobs") },
+                )
+                NavigationBarItem(
+                    selected = tab == 1,
+                    onClick = { tab = 1 },
+                    icon = { Icon(Icons.Filled.BarChart, contentDescription = null) },
+                    label = { Text("Insights") },
+                )
+                if (isAdmin) NavigationBarItem(
+                    selected = tab == 2,
+                    onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                    label = { Text("Admin") },
+                )
+            }
+        },
+    ) { padding ->
+        Box(Modifier.padding(padding)) {
+            when (tab) {
+                0 -> CoordinatorHomeScreen()
+                1 -> StatsScreen()
+                else -> AdminScreen()
+            }
+        }
     }
 }
 
@@ -126,17 +182,3 @@ private fun DriverHome(onSignOut: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RoleShell(title: String, onSignOut: () -> Unit, content: @Composable () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
-            )
-        },
-    ) { padding ->
-        Box(Modifier.padding(padding)) { content() }
-    }
-}

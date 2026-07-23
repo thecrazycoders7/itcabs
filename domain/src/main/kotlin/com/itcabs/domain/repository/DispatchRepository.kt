@@ -1,6 +1,7 @@
 package com.itcabs.domain.repository
 
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.CoordinatorStats
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
@@ -21,7 +22,13 @@ interface DispatchRepository {
     /** Repost an existing job's route as a fresh OPEN job (M6). */
     suspend fun repostJob(jobId: Long): AppResult<List<Leg>>
     suspend fun myLegs(): AppResult<List<Leg>>
+    /** The coordinator's own performance summary for the Insights tab. */
+    suspend fun coordinatorStats(): AppResult<CoordinatorStats>
     suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit>
+    /** Report a claimed driver as a no-show: dings their reliability and reopens the leg. */
+    suspend fun markNoShow(legId: Long): AppResult<Unit>
+    /** Coordinator marks a completed leg settled (cash paid to driver). */
+    suspend fun markPaid(legId: Long): AppResult<Unit>
     suspend fun rate(legId: Long, stars: Int, review: String?): AppResult<Unit>
 
     // driver
@@ -30,6 +37,9 @@ interface DispatchRepository {
 
     /** Err(409) => leg already taken. */
     suspend fun claim(legId: Long): AppResult<Leg>
+
+    /** Driver reports live progress: EN_ROUTE, ARRIVED or STARTED. */
+    suspend fun setStage(legId: Long, stage: String): AppResult<Unit>
 
     fun getMyClaimsFlow(userId: Long): Flow<List<Leg>>
     suspend fun myClaims(): AppResult<List<Leg>>

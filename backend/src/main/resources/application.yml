@@ -18,8 +18,12 @@ spring:
     baseline-on-migrate: true
 
 itcabs:
+  # Supabase Auth (Google + email/password). Tokens are verified against this project's JWKS.
+  # URL is public (not a secret); override per environment if the project changes.
+  supabase:
+    url: ${SUPABASE_URL:https://wjorulwjpjgpeudecjwn.supabase.co}
   jwt:
-    # Dev secret only. In staging/prod inject a strong secret via env (ADR-0010).
+    # Legacy phone-OTP JWT config — retained while the OTP code is dormant; unused by Supabase auth.
     secret: ${JWT_SECRET:dev-secret-change-me-dev-secret-change-me-32b}
     access-ttl-minutes: 15
     refresh-ttl-days: 30

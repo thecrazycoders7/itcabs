@@ -1,27 +1,19 @@
 package com.itcabs.core.network
 
-import com.itcabs.core.network.dto.OtpRequestDto
-import com.itcabs.core.network.dto.OtpVerifyDto
-import com.itcabs.core.network.dto.RefreshDto
-import com.itcabs.core.network.dto.SentDto
-import com.itcabs.core.network.dto.TokensDto
-import com.itcabs.core.network.dto.UserDto
+import com.itcabs.core.network.dto.MeDto
+import com.itcabs.core.network.dto.OnboardDto
+import com.itcabs.core.network.dto.OnboardInputDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 
-/** Retrofit binding for the backend auth endpoints. Returns raw Response so callers see HTTP codes. */
+/** Backend auth endpoints (identity is Supabase; these map/onboard the domain user). Raw Response. */
 interface AuthApi {
-    @POST("api/v1/auth/otp/request")
-    suspend fun requestOtp(@Body body: OtpRequestDto): Response<SentDto>
-
-    @POST("api/v1/auth/otp/verify")
-    suspend fun verifyOtp(@Body body: OtpVerifyDto): Response<TokensDto>
-
-    @POST("api/v1/auth/refresh")
-    suspend fun refresh(@Body body: RefreshDto): Response<TokensDto>
-
+    /** Onboarded → user fields + onboarded=true; authenticated-but-new → onboarded=false. */
     @GET("api/v1/auth/me")
-    suspend fun me(): Response<UserDto>
+    suspend fun me(): Response<MeDto>
+
+    @POST("api/v1/auth/onboard")
+    suspend fun onboard(@Body body: OnboardInputDto): Response<OnboardDto>
 }

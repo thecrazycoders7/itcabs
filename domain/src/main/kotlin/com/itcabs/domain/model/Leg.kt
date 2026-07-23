@@ -22,6 +22,12 @@ data class Leg(
     val status: LegStatus,
     val claimedBy: Long?,
     val claimedByName: String?,
+    /** Live driver-reported progress: EN_ROUTE, ARRIVED, STARTED, or null (not moving yet). */
+    val tripStage: String? = null,
+    /** True once the coordinator has settled (paid) this completed leg. */
+    val paid: Boolean = false,
+    val claimedByTrips: Int? = null,
+    val claimedByNoShows: Int? = null,
     val version: Int,
 )
 

@@ -76,6 +76,20 @@ fun MyTripsScreen(viewModel: MyTripsViewModel = hiltViewModel()) {
             )
         }
 
+        // Earnings at a glance: what's been paid vs. still owed on completed trips.
+        val completed = state.trips.filter { it.status == LegStatus.COMPLETED }
+        val pending = completed.filter { !it.paid }.sumOf { it.farePaise }
+        val earned = completed.filter { it.paid }.sumOf { it.farePaise }
+        if (completed.isNotEmpty()) {
+            Text(
+                "Earned ${formatRupees(earned)}" + if (pending > 0) " · ${formatRupees(pending)} pending" else "",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (pending > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+
         if (state.trips.isEmpty() && !state.loading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -90,14 +104,35 @@ fun MyTripsScreen(viewModel: MyTripsViewModel = hiltViewModel()) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                items(state.trips, key = { it.id }) { trip -> TripCard(trip, onChat = { chatLegId = trip.id }) }
+                items(state.trips, key = { it.id }) { trip ->
+                    TripCard(
+                        trip,
+                        onChat = { chatLegId = trip.id },
+                        onStage = { stage -> viewModel.setStage(trip.id, stage) },
+                    )
+                }
             }
         }
     }
 }
 
+/** Live-progress ladder the driver walks: null → EN_ROUTE → ARRIVED → STARTED (coordinator then completes). */
+private fun nextStage(current: String?): Pair<String, String>? = when (current) {
+    null -> "EN_ROUTE" to "I'm on the way"
+    "EN_ROUTE" -> "ARRIVED" to "Arrived at pickup"
+    "ARRIVED" -> "STARTED" to "Start trip"
+    else -> null // STARTED: nothing more for the driver to report
+}
+
+private fun stageLabel(stage: String?): String? = when (stage) {
+    "EN_ROUTE" -> "On the way to pickup"
+    "ARRIVED" -> "Arrived at pickup"
+    "STARTED" -> "Trip in progress"
+    else -> null
+}
+
 @Composable
-private fun TripCard(trip: Leg, onChat: () -> Unit) {
+private fun TripCard(trip: Leg, onChat: () -> Unit, onStage: (String) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -133,9 +168,27 @@ private fun TripCard(trip: Leg, onChat: () -> Unit) {
                 }
             }
         }
-        // Chat with the coordinator about this trip (M7).
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        if (trip.status == LegStatus.COMPLETED) {
+            Text(
+                if (trip.paid) "Paid ✓" else "Payment pending",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (trip.paid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+        }
+        stageLabel(trip.tripStage)?.let {
+            Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        }
+        // Chat with the coordinator + report live progress on an active trip (M7 + trip status).
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onChat) { Text("Chat") }
+            if (trip.status == LegStatus.CLAIMED || trip.status == LegStatus.CONFIRMED) {
+                nextStage(trip.tripStage)?.let { (stage, label) ->
+                    androidx.compose.material3.Button(onClick = { onStage(stage) }, shape = MaterialTheme.shapes.small) {
+                        Text(label)
+                    }
+                }
+            }
         }
     }
 }

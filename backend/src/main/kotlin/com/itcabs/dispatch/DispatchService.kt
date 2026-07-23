@@ -58,6 +58,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         legsWhere("l.coordinator_id = :c ORDER BY l.created_at DESC", MapSqlParameterSource("c", coordinatorId))
 
     /** Coordinator advances their own leg through the workflow (not the claim step). */
+    @Transactional
     fun setStatus(coordinatorId: Long, legId: Long, status: String) {
         if (status !in setOf("CONFIRMED", "COMPLETED", "CANCELLED"))
             throw badRequest("status must be CONFIRMED, COMPLETED or CANCELLED")
@@ -66,6 +67,49 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
             MapSqlParameterSource().addValue("s", status).addValue("id", legId).addValue("c", coordinatorId),
         )
         if (n == 0) throw forbidden("not your leg, or leg not found")
+        if (status == "COMPLETED") {
+            db.update(
+                """UPDATE driver_profiles SET trips_completed = trips_completed + 1
+                   WHERE user_id = (SELECT claimed_by FROM legs WHERE id = :id AND claimed_by IS NOT NULL)""",
+                MapSqlParameterSource("id", legId),
+            )
+        }
+    }
+
+    /**
+     * Coordinator reports a no-show: records it against the driver's reliability and REOPENS the leg
+     * so someone else can claim it. Accountability is the point — ghosting has a cost.
+     */
+    @Transactional
+    fun markNoShow(coordinatorId: Long, legId: Long) {
+        val row = db.queryForList(
+            "SELECT claimed_by, status FROM legs WHERE id = :id AND coordinator_id = :c",
+            MapSqlParameterSource().addValue("id", legId).addValue("c", coordinatorId),
+        ).firstOrNull() ?: throw forbidden("not your leg, or leg not found")
+        val driverId = (row["claimed_by"] as? Number)?.toLong() ?: throw badRequest("leg has no claimed driver")
+        if (row["status"] !in setOf("CLAIMED", "CONFIRMED"))
+            throw badRequest("can only report a no-show on a claimed or confirmed leg")
+        db.update("UPDATE driver_profiles SET no_shows = no_shows + 1 WHERE user_id = :d", MapSqlParameterSource("d", driverId))
+        db.update(
+            "UPDATE legs SET status='OPEN', claimed_by=NULL, claimed_at=NULL, trip_stage=NULL, version=version+1 WHERE id = :id",
+            MapSqlParameterSource("id", legId),
+        )
+    }
+
+    /**
+     * Driver reports live trip progress on a leg they claimed. Orthogonal to the OPEN/CLAIMED/…
+     * status: a CONFIRMED leg can be EN_ROUTE. Coordinator still owns COMPLETED.
+     */
+    @Transactional
+    fun setStage(driverId: Long, legId: Long, stage: String) {
+        if (stage !in setOf("EN_ROUTE", "ARRIVED", "STARTED"))
+            throw badRequest("stage must be EN_ROUTE, ARRIVED or STARTED")
+        val n = db.update(
+            """UPDATE legs SET trip_stage=:s, version=version+1
+               WHERE id=:id AND claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')""",
+            MapSqlParameterSource().addValue("s", stage).addValue("id", legId).addValue("d", driverId),
+        )
+        if (n == 0) throw forbidden("not your active trip, or trip not claimed")
     }
 
     // --- driver: browse + claim ---
@@ -113,6 +157,16 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         return legsWhere("l.id = :id", MapSqlParameterSource("id", legId)).first()
     }
 
+    /** Coordinator marks a completed leg as settled (cash paid to the driver). Idempotent. */
+    @Transactional
+    fun markPaid(coordinatorId: Long, legId: Long) {
+        val n = db.update(
+            "UPDATE legs SET paid_at=now() WHERE id=:id AND coordinator_id=:c AND status='COMPLETED' AND paid_at IS NULL",
+            MapSqlParameterSource().addValue("id", legId).addValue("c", coordinatorId),
+        )
+        if (n == 0) throw badRequest("leg not found, not yours, not completed, or already paid")
+    }
+
     // --- rating (reputation touchpoint; per-trip immutable record) ---
 
     @Transactional
@@ -134,15 +188,51 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         )
     }
 
+    // --- coordinator analytics (Insights tab) ---
+
+    fun coordinatorStats(coordinatorId: Long): CoordinatorStatsDto {
+        val agg = db.queryForList(
+            """SELECT count(*) AS posted,
+                      count(*) FILTER (WHERE claimed_by IS NOT NULL)                   AS claimed,
+                      count(*) FILTER (WHERE status='COMPLETED')                        AS completed,
+                      count(*) FILTER (WHERE status='CANCELLED')                        AS cancelled,
+                      coalesce(sum(fare_paise) FILTER (WHERE paid_at IS NOT NULL),0)    AS total_paid,
+                      coalesce(sum(fare_paise) FILTER (WHERE status='COMPLETED' AND paid_at IS NULL),0) AS outstanding
+                 FROM legs WHERE coordinator_id = :c""",
+            MapSqlParameterSource("c", coordinatorId),
+        ).first()
+        val posted = (agg["posted"] as Number).toInt()
+        val claimed = (agg["claimed"] as Number).toInt()
+        val topDrivers = db.query(
+            """SELECT u.name AS name, count(*) AS trips
+                 FROM legs l JOIN users u ON u.id = l.claimed_by
+                WHERE l.coordinator_id = :c AND l.status = 'COMPLETED'
+                GROUP BY u.name ORDER BY trips DESC LIMIT 5""",
+            MapSqlParameterSource("c", coordinatorId),
+        ) { rs, _ -> TopDriverDto(rs.getString("name") ?: "", rs.getInt("trips")) }
+        return CoordinatorStatsDto(
+            posted = posted,
+            claimed = claimed,
+            completed = (agg["completed"] as Number).toInt(),
+            cancelled = (agg["cancelled"] as Number).toInt(),
+            fillRatePct = if (posted == 0) 0 else (claimed * 100 / posted),
+            totalPaidPaise = (agg["total_paid"] as Number).toLong(),
+            outstandingPaise = (agg["outstanding"] as Number).toLong(),
+            topDrivers = topDrivers,
+        )
+    }
+
     // --- helpers ---
 
     private fun legsWhere(where: String, params: MapSqlParameterSource): List<LegDto> = db.query(
         """SELECT l.id, l.job_id, l.coordinator_id, j.office, j.shift, l.pickup, l.drop_point,
                   l.area, l.time_window, l.vehicle_type, l.fare_paise, l.seats, l.status,
-                  l.claimed_by, u.name as claimed_by_name, l.version
+                  l.claimed_by, u.name as claimed_by_name, l.trip_stage, l.paid_at, l.version,
+                  dp.trips_completed as claimed_by_trips, dp.no_shows as claimed_by_no_shows
              FROM legs l
              JOIN jobs j ON j.id = l.job_id
              LEFT JOIN users u ON u.id = l.claimed_by
+             LEFT JOIN driver_profiles dp ON dp.user_id = l.claimed_by
             WHERE $where""",
         params, LEG_MAPPER,
     )
@@ -165,6 +255,10 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                 status = rs.getString("status"),
                 claimedBy = rs.getObject("claimed_by")?.let { (it as Number).toLong() },
                 claimedByName = rs.getString("claimed_by_name"),
+                tripStage = rs.getString("trip_stage"),
+                paid = rs.getObject("paid_at") != null,
+                claimedByTrips = rs.getObject("claimed_by_trips")?.let { (it as Number).toInt() },
+                claimedByNoShows = rs.getObject("claimed_by_no_shows")?.let { (it as Number).toInt() },
                 version = rs.getInt("version"),
             )
         }

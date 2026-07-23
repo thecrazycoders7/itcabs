@@ -32,9 +32,8 @@ class CoordinatorHomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val user = auth.currentUser()
-            if (user is AppResult.Ok) {
-                dispatch.getMyLegsFlow(user.value.id).collect { legs ->
+            (auth.currentUser() as? AppResult.Ok)?.value?.let { user ->
+                dispatch.getMyLegsFlow(user.id).collect { legs ->
                     _state.update { it.copy(legs = legs) }
                 }
             }
@@ -72,6 +71,28 @@ class CoordinatorHomeViewModel @Inject constructor(
             when (val result = dispatch.setStatus(legId, status)) {
                 is AppResult.Ok -> refresh()
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
+    /** Report the claimed driver as a no-show: dings reliability, leg reopens (realtime refreshes). */
+    fun markNoShow(legId: Long) {
+        _state.update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.markNoShow(legId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
+    /** Mark a completed trip settled (cash paid). Realtime + refresh flip it to Paid on both sides. */
+    fun markPaid(legId: Long) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.markPaid(legId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(error = result.message) }
             }
         }
     }

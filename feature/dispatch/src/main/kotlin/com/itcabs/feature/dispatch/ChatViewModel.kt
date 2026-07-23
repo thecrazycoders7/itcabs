@@ -41,7 +41,7 @@ class ChatViewModel @Inject constructor(
         started = true
         this.legId = legId
         viewModelScope.launch {
-            (auth.currentUser() as? AppResult.Ok)?.let { u -> _state.update { it.copy(myUserId = u.value.id) } }
+            (auth.currentUser() as? AppResult.Ok)?.value?.let { u -> _state.update { it.copy(myUserId = u.id) } }
         }
         refresh()
         viewModelScope.launch { dispatch.legEvents().collect { refresh() } }

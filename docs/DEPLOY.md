@@ -69,7 +69,9 @@ deploys `backend/Dockerfile` with a `/actuator/health` check; secrets are entere
    `JWT_SECRET` (≥32 bytes), `MSG91_AUTH_KEY`.
 3. Add a **Secret File** named `firebase-admin.json` (paste the service-account JSON) — Render mounts
    it at `/etc/secrets/firebase-admin.json`, which `FIREBASE_CREDENTIALS` already points to.
-4. Use the **starter** plan, not free — free instances spin down when idle, which drops the WebSocket.
+4. **Free** plan is fine for a pilot (spins down after ~15 min idle → a cold start on the next
+   request; the app's WebSocket auto-reconnects when traffic resumes). Move to **starter** for
+   always-on before real launch.
 5. Deploy. Verify `https://<service>.onrender.com/actuator/health` → `UP` and `/docs` loads.
 
 Railway / Fly.io / Cloud Run work too (same Dockerfile + env vars); only the dashboard differs.

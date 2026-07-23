@@ -1,28 +1,36 @@
 package com.itcabs.domain.repository
 
 import com.itcabs.domain.AppResult
-import com.itcabs.domain.model.Session
 import com.itcabs.domain.model.User
 import com.itcabs.domain.model.UserRole
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Auth against the backend (ADR-0005). Implementations own token storage; the UI/domain
- * never sees raw tokens. Replaces the Firestore-direct auth path in the old `Repo`.
+ * Auth via Supabase (Google + email/password). The client obtains a Supabase session, then this
+ * repo talks to our backend (/auth/me, /auth/onboard). Implementations own token storage; the
+ * UI never sees raw tokens.
  */
 interface AuthRepository {
     fun getUserFlow(): Flow<User?>
 
-    suspend fun requestOtp(phone: String): AppResult<Unit>
+    /** A Supabase session token is stored (the user may still need onboarding). */
+    fun hasSession(): Boolean
 
-    /** [role] and [name] are required only for a first-time user; ignored for returning ones. */
-    suspend fun verifyOtp(phone: String, code: String, role: UserRole?, name: String?): AppResult<Session>
+    /** Exchange a Google ID token (from Credential Manager) for a Supabase session. */
+    suspend fun signInWithGoogle(idToken: String): AppResult<Unit>
 
-    /** Exchanges the stored refresh token for a fresh access token. */
-    suspend fun refresh(): AppResult<Unit>
+    suspend fun signInWithEmail(email: String, password: String): AppResult<Unit>
+    suspend fun signUpWithEmail(email: String, password: String): AppResult<Unit>
 
-    suspend fun currentUser(): AppResult<User>
+    /**
+     * GET /auth/me. Ok(user) when onboarded; Ok(null) when authenticated but not yet onboarded
+     * (needs role); Err on no/invalid session.
+     */
+    suspend fun currentUser(): AppResult<User?>
 
-    /** Clears stored tokens (local sign-out). */
+    /** First-time setup after sign-in: pick role (+ name). Creates the domain user. */
+    suspend fun onboard(role: UserRole, name: String?): AppResult<User>
+
+    /** Clears the stored session (local sign-out). */
     suspend fun signOut()
 }

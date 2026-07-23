@@ -29,6 +29,21 @@ object NetworkFactory {
     fun chatApi(baseUrl: String, session: TokenSession, debug: Boolean = false): ChatApi =
         retrofit(baseUrl, session, debug).create(ChatApi::class.java)
 
+    /** Supabase GoTrue auth. Base URL = the Supabase project URL; the anon key rides as the apikey header. */
+    fun supabaseAuthApi(supabaseUrl: String, anonKey: String): SupabaseAuthApi {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().addHeader("apikey", anonKey).build())
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl(supabaseUrl.trimEnd('/') + "/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(SupabaseAuthApi::class.java)
+    }
+
     /** Realtime leg events (ADR-0008). Own OkHttp client with a ping keepalive for the long-lived socket. */
     fun realtimeClient(baseUrl: String, session: TokenSession): RealtimeClient {
         val client = OkHttpClient.Builder()
@@ -39,6 +54,10 @@ object NetworkFactory {
 
     private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
+            // Free-tier host spins down when idle; the first request must wait out a ~50s cold start,
+            // so give reads generous headroom instead of failing with "network unavailable".
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(70, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor(ConnectivityInterceptor()) // outermost: turn connection failures into a 503 result, not a crash
             .addInterceptor(AuthInterceptor(session))
             .authenticator(TokenAuthenticator(baseUrl, session, json))

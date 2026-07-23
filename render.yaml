@@ -7,7 +7,8 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: starter          # 'free' spins down when idle (kills the WebSocket); 'starter' stays warm
+    plan: free             # pilot: spins down after ~15 min idle (cold start on next request; WS
+                           # reconnects when traffic resumes). Switch to 'starter' for always-on.
     healthCheckPath: /actuator/health
     autoDeploy: true
     envVars:

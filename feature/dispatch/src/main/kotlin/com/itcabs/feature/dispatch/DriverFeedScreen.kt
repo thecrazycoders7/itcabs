@@ -29,6 +29,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,11 +50,19 @@ internal fun formatRupees(paise: Long): String = "₹${paise / 100}"
 @Composable
 fun DriverFeedScreen(viewModel: DriverFeedViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    var showKyc by rememberSaveable { mutableStateOf(false) }
+
+    if (showKyc) {
+        DriverKycScreen(onDone = { showKyc = false; viewModel.refresh() })
+        return
+    }
+
     DriverFeedContent(
         state = state,
         onAreaChange = viewModel::onAreaChange,
         onDismissNotice = viewModel::dismissNotice,
-        onClaim = viewModel::claim
+        onClaim = viewModel::claim,
+        onCompleteKyc = { showKyc = true },
     )
 }
 
@@ -61,6 +72,7 @@ fun DriverFeedContent(
     onAreaChange: (String) -> Unit = {},
     onDismissNotice: () -> Unit = {},
     onClaim: (Long) -> Unit = {},
+    onCompleteKyc: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -101,7 +113,16 @@ fun DriverFeedContent(
             )
         }
 
-        state.kycStatus?.takeIf { it != KycStatus.VERIFIED }?.let { VerificationBanner(it) }
+        state.kycStatus?.takeIf { it != KycStatus.VERIFIED }?.let { status ->
+            VerificationBanner(status)
+            // NONE = never submitted, REJECTED = redo; PENDING just waits for admin verify.
+            if (status == KycStatus.NONE || status == KycStatus.REJECTED) {
+                Button(
+                    onClick = onCompleteKyc,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text("Complete KYC") }
+            }
+        }
         state.notice?.let { NoticeBar(it, onDismiss = onDismissNotice) }
         state.error?.let {
             Text(

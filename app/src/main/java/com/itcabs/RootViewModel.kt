@@ -16,7 +16,7 @@ import javax.inject.Inject
 sealed interface RootState {
     data object Loading : RootState
     data object SignedOut : RootState
-    data class SignedIn(val role: UserRole) : RootState
+    data class SignedIn(val role: UserRole, val isAdmin: Boolean = false) : RootState
 }
 
 @HiltViewModel
@@ -36,7 +36,7 @@ class RootViewModel @Inject constructor(
         viewModelScope.launch {
             auth.getUserFlow().collect { user ->
                 if (user != null) {
-                    _state.value = RootState.SignedIn(user.role)
+                    _state.value = RootState.SignedIn(user.role, user.isAdmin)
                 } else if (_state.value is RootState.SignedIn) {
                     _state.value = RootState.SignedOut
                 }
@@ -50,16 +50,17 @@ class RootViewModel @Inject constructor(
     }
 
     /**
-     * Try /auth/me with the persisted access token. If it's expired (401) but a refresh token
-     * exists, refresh once and retry — so a returning user stays signed in past the 15-min
-     * access-token lifetime. (Full auto-refresh on any 401 is a separate follow-up.)
+     * Cold start: if a Supabase session is stored, ask the backend who we are. Onboarded → SignedIn;
+     * authenticated-but-not-onboarded (or no/expired session) → SignedOut, and the AuthScreen picks
+     * up the onboarding step. ponytail: Supabase access tokens expire in ~1h with no auto-refresh
+     * yet — a returning user re-signs-in after that. Add Supabase refresh-token handling later.
      */
     private suspend fun resolve(): RootState {
-        (auth.currentUser() as? AppResult.Ok)?.let { return RootState.SignedIn(it.value.role) }
-        if (auth.refresh() is AppResult.Ok) {
-            (auth.currentUser() as? AppResult.Ok)?.let { return RootState.SignedIn(it.value.role) }
+        if (!auth.hasSession()) return RootState.SignedOut
+        return when (val r = auth.currentUser()) {
+            is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role, it.isAdmin) } ?: RootState.SignedOut
+            is AppResult.Err -> RootState.SignedOut
         }
-        return RootState.SignedOut
     }
 
     fun onSignedIn(role: UserRole) { _state.value = RootState.SignedIn(role) }
