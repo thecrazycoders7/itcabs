@@ -35,6 +35,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // ponytail: pilot signs the release with the debug key so testers can sideload it.
+            // Generate a proper upload keystore before a Play release.
+            signingConfig = signingConfigs.getByName("debug")
             // Hosted backend URL. Set at build time: -Pitcabs.baseUrl=https://itcabs-backend.onrender.com/
             // or the ITCABS_BASE_URL env var. Falls back to a placeholder so a bare build still compiles.
             val releaseBaseUrl = (findProperty("itcabs.baseUrl") as String?)
