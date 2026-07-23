@@ -46,6 +46,7 @@ class AuthRepositoryImplTest {
             FakeAuthApi(Response.success(TokensDto("acc", "ref", 7, "DRIVER"))),
             store,
             FakeUserDao(),
+            { "test-device" },
         )
 
         val ok = assertIs<AppResult.Ok<*>>(repo.verifyOtp("+91", "123456", UserRole.DRIVER, "T"))
@@ -64,7 +65,7 @@ class AuthRepositoryImplTest {
             401,
             """{"error":"wrong code"}""".toResponseBody("application/json".toMediaType()),
         )
-        val repo = AuthRepositoryImpl(FakeAuthApi(err), store, FakeUserDao())
+        val repo = AuthRepositoryImpl(FakeAuthApi(err), store, FakeUserDao(), { "test-device" })
 
         val failure = assertIs<AppResult.Err>(repo.verifyOtp("+91", "000000", UserRole.DRIVER, "T"))
         assertEquals(401, failure.code)
@@ -77,6 +78,7 @@ class AuthRepositoryImplTest {
             FakeAuthApi(Response.success(TokensDto("a", "b", 1, "DRIVER"))),
             InMemoryTokenStore(),
             FakeUserDao(),
+            { "test-device" },
         )
 
         val failure = assertIs<AppResult.Err>(repo.refresh())

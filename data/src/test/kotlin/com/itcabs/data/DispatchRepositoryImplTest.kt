@@ -36,6 +36,7 @@ private class FakeDispatchApi(
     private val feedResponse: Response<List<LegDto>> = Response.success(listOf(leg(1, "OPEN"))),
 ) : DispatchApi {
     override suspend fun postJob(body: PostJobDto) = Response.success(listOf(leg(1, "OPEN")))
+    override suspend fun repost(jobId: Long) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun myLegs() = feedResponse
     override suspend fun setStatus(id: Long, body: StatusUpdateDto) = Response.success(Unit)
     override suspend fun rate(id: Long, body: RatingDto) = Response.success(Unit)

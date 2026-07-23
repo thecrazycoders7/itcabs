@@ -7,10 +7,12 @@ import com.itcabs.core.network.NetworkFactory
 import com.itcabs.core.network.RealtimeClient
 import android.content.Context
 import com.itcabs.BuildConfig
+import com.itcabs.PersistentDeviceId
 import com.itcabs.PersistentTokenStore
 import com.itcabs.core.database.LegDao
 import com.itcabs.core.database.UserDao
 import com.itcabs.data.AuthRepositoryImpl
+import com.itcabs.data.DeviceIdProvider
 import com.itcabs.data.DispatchRepositoryImpl
 import com.itcabs.data.DriverRepositoryImpl
 import com.itcabs.data.TokenStore
@@ -56,8 +58,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun authRepository(api: AuthApi, tokenStore: TokenStore, userDao: UserDao): AuthRepository =
-        AuthRepositoryImpl(api, tokenStore, userDao)
+    fun deviceIdProvider(@ApplicationContext context: Context): DeviceIdProvider =
+        PersistentDeviceId(context)
+
+    @Provides
+    @Singleton
+    fun authRepository(api: AuthApi, tokenStore: TokenStore, userDao: UserDao, deviceIds: DeviceIdProvider): AuthRepository =
+        AuthRepositoryImpl(api, tokenStore, userDao, deviceIds)
 
     @Provides
     @Singleton

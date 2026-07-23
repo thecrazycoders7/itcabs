@@ -56,7 +56,7 @@ class IdentityService(
      * records a session. First-time users pass role (+ name); returning users keep theirs.
      */
     @Transactional
-    fun verifyOtp(phone: String, code: String, role: String?, name: String?): Tokens {
+    fun verifyOtp(phone: String, code: String, role: String?, name: String?, deviceId: String? = null): Tokens {
         val row = db.queryForList(
             """SELECT id, code_hash, expires_at FROM otp_challenges
                WHERE phone = :p AND consumed_at IS NULL
@@ -77,6 +77,15 @@ class IdentityService(
         // OTP attempt on the same phone lands here and is rejected (M4 trust & safety).
         if (user != null && user["status"] == "BLOCKED") throw forbidden("account blocked")
 
+        // Ban evasion: a device banned alongside a blocked user can't register a new number either.
+        if (deviceId != null) {
+            val deviceBlocked = db.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM blocked_devices WHERE device_id = :d)",
+                MapSqlParameterSource("d", deviceId), Boolean::class.java,
+            ) ?: false
+            if (deviceBlocked) throw forbidden("device blocked")
+        }
+
         val (userId, resolvedRole) = if (user != null) {
             (user["id"] as Number).toLong() to user["role"] as String
         } else {
@@ -93,8 +102,8 @@ class IdentityService(
         val access = jwt.issueAccess(userId, resolvedRole)
         val refresh = randomToken()
         db.update(
-            "INSERT INTO device_sessions(user_id, refresh_token_hash) VALUES (:u, :h)",
-            MapSqlParameterSource().addValue("u", userId).addValue("h", sha256(refresh)),
+            "INSERT INTO device_sessions(user_id, refresh_token_hash, device) VALUES (:u, :h, :dev)",
+            MapSqlParameterSource().addValue("u", userId).addValue("h", sha256(refresh)).addValue("dev", deviceId),
         )
         return Tokens(access, refresh, userId, resolvedRole)
     }

@@ -78,11 +78,27 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
             "UPDATE users SET status=:s WHERE id=:id",
             MapSqlParameterSource().addValue("s", status).addValue("id", id),
         )
-        // Revoke refresh sessions so a blocked user can't renew; their access token still expires in ≤15m.
-        if (blocked) db.update(
-            "UPDATE device_sessions SET revoked_at=now() WHERE user_id=:id AND revoked_at IS NULL",
-            MapSqlParameterSource("id", id),
-        )
+        if (blocked) {
+            // Revoke refresh sessions so a blocked user can't renew; access token still expires in ≤15m.
+            db.update(
+                "UPDATE device_sessions SET revoked_at=now() WHERE user_id=:id AND revoked_at IS NULL",
+                MapSqlParameterSource("id", id),
+            )
+            // Ban this user's devices so they can't re-register under a new number (ban evasion).
+            db.update(
+                """INSERT INTO blocked_devices(device_id)
+                   SELECT DISTINCT device FROM device_sessions WHERE user_id=:id AND device IS NOT NULL
+                   ON CONFLICT (device_id) DO NOTHING""",
+                MapSqlParameterSource("id", id),
+            )
+        } else {
+            // Unblock: free this user's devices. ponytail: a device shared with another still-blocked
+            // user gets freed too — acceptable until device→user tracking needs to be exact.
+            db.update(
+                "DELETE FROM blocked_devices WHERE device_id IN (SELECT device FROM device_sessions WHERE user_id=:id)",
+                MapSqlParameterSource("id", id),
+            )
+        }
         return mapOf("status" to status)
     }
 }
