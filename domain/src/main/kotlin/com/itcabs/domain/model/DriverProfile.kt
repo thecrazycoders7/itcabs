@@ -8,3 +8,14 @@ data class DriverProfile(
     val vehicleType: String?,
     val vehicleReg: String?,
 )
+
+/** A driver awaiting KYC approval, shown in the admin review queue. */
+data class PendingDriver(
+    val id: Long,
+    val name: String,
+    val email: String?,
+    val vehicleType: String?,
+    val vehicleReg: String?,
+    val aadhaarMasked: String?,
+    val rcNumberMasked: String?,
+)

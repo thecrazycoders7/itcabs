@@ -7,11 +7,14 @@ import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.RealtimeClient
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.RatingDto
+import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.CoordinatorStats
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
+import com.itcabs.domain.model.TopDriver
 import com.itcabs.domain.repository.DispatchRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -56,8 +59,24 @@ class DispatchRepositoryImpl(
             legs
         }
 
+    override suspend fun coordinatorStats(): AppResult<CoordinatorStats> =
+        api.coordinatorStats().asResult { dto ->
+            CoordinatorStats(
+                posted = dto.posted, claimed = dto.claimed, completed = dto.completed,
+                cancelled = dto.cancelled, fillRatePct = dto.fillRatePct,
+                totalPaidPaise = dto.totalPaidPaise, outstandingPaise = dto.outstandingPaise,
+                topDrivers = dto.topDrivers.map { TopDriver(it.name, it.trips) },
+            )
+        }
+
     override suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit> =
         api.setStatus(legId, StatusUpdateDto(status.name)).asResult { }
+
+    override suspend fun markNoShow(legId: Long): AppResult<Unit> =
+        api.noShow(legId).asResult { }
+
+    override suspend fun markPaid(legId: Long): AppResult<Unit> =
+        api.markPaid(legId).asResult { }
 
     override suspend fun rate(legId: Long, stars: Int, review: String?): AppResult<Unit> =
         api.rate(legId, RatingDto(stars, review)).asResult { }
@@ -77,6 +96,9 @@ class DispatchRepositoryImpl(
             dao.insertLegs(listOf(leg.toEntity()))
             leg
         }
+
+    override suspend fun setStage(legId: Long, stage: String): AppResult<Unit> =
+        api.setStage(legId, StageUpdateDto(stage)).asResult { }
 
     override suspend fun myClaims(): AppResult<List<Leg>> =
         api.myClaims().asResult { dtos ->

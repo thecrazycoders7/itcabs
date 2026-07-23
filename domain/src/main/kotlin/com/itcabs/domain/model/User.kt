@@ -18,4 +18,5 @@ data class User(
     val role: UserRole,
     val name: String,
     val status: UserStatus,
+    val isAdmin: Boolean = false,
 )

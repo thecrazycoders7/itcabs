@@ -75,6 +75,28 @@ class CoordinatorHomeViewModel @Inject constructor(
         }
     }
 
+    /** Report the claimed driver as a no-show: dings reliability, leg reopens (realtime refreshes). */
+    fun markNoShow(legId: Long) {
+        _state.update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.markNoShow(legId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
+    /** Mark a completed trip settled (cash paid). Realtime + refresh flip it to Paid on both sides. */
+    fun markPaid(legId: Long) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.markPaid(legId)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(error = result.message) }
+            }
+        }
+    }
+
     fun rate(legId: Long, stars: Int) {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {

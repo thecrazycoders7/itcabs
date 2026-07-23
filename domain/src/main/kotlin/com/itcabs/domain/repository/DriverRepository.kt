@@ -2,6 +2,7 @@ package com.itcabs.domain.repository
 
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.DriverProfile
+import com.itcabs.domain.model.PendingDriver
 
 interface DriverRepository {
     suspend fun submitKyc(
@@ -15,4 +16,9 @@ interface DriverRepository {
 
     /** The signed-in driver's own KYC status + vehicle. */
     suspend fun myProfile(): AppResult<DriverProfile>
+
+    // admin (is_admin only; enforced server-side)
+    suspend fun pendingDrivers(): AppResult<List<PendingDriver>>
+    suspend fun verifyDriver(driverId: Long): AppResult<Unit>
+    suspend fun rejectDriver(driverId: Long): AppResult<Unit>
 }

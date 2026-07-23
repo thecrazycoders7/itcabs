@@ -23,7 +23,7 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         requireAuthId(req) // 401 if not authenticated
         val uid = req.getAttribute(USER_ID_ATTR) as? Long ?: return mapOf("onboarded" to false)
         return db.queryForList(
-            "SELECT id, phone, email, role, name, status FROM users WHERE id = :id",
+            "SELECT id, phone, email, role, name, status, is_admin FROM users WHERE id = :id",
             MapSqlParameterSource("id", uid),
         ).first() + mapOf("onboarded" to true)
     }

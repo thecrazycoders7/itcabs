@@ -74,4 +74,5 @@ private fun MeDto.toUser() = User(
     role = UserRole.valueOf(role ?: "DRIVER"),
     name = name ?: "",
     status = UserStatus.valueOf(status ?: "ACTIVE"),
+    isAdmin = isAdmin,
 )

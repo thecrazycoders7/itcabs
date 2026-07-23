@@ -1,5 +1,6 @@
 package com.itcabs.core.network.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 // Wire shapes for /api/v1/auth/*. These mirror the backend DTOs exactly; domain mapping
@@ -51,6 +52,7 @@ data class MeDto(
     val role: String? = null,
     val name: String? = null,
     val status: String? = null,
+    @SerialName("is_admin") val isAdmin: Boolean = false,
 )
 
 @Serializable

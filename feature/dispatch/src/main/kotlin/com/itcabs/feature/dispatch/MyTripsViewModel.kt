@@ -19,7 +19,7 @@ data class MyTripsUiState(
     val error: String? = null,
 )
 
-/** The driver's claimed trips. Read-only: status is advanced by the coordinator (ADR workflow). */
+/** The driver's claimed trips. The driver reports live progress (setStage); the coordinator owns completion. */
 @HiltViewModel
 class MyTripsViewModel @Inject constructor(
     private val dispatch: DispatchRepository,
@@ -29,6 +29,17 @@ class MyTripsViewModel @Inject constructor(
     val state: StateFlow<MyTripsUiState> = _state.asStateFlow()
 
     init { refresh() }
+
+    /** Advance live trip progress: EN_ROUTE → ARRIVED → STARTED. Refresh reflects it back. */
+    fun setStage(legId: Long, stage: String) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val result = dispatch.setStage(legId, stage)) {
+                is AppResult.Ok -> refresh()
+                is AppResult.Err -> _state.update { it.copy(error = result.message) }
+            }
+        }
+    }
 
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }

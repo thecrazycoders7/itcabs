@@ -5,7 +5,9 @@ import com.itcabs.core.database.LegEntity
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
+import com.itcabs.core.network.dto.CoordinatorStatsDto
 import com.itcabs.core.network.dto.RatingDto
+import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.LegStatus
@@ -38,10 +40,14 @@ private class FakeDispatchApi(
     override suspend fun postJob(body: PostJobDto) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun repost(jobId: Long) = Response.success(listOf(leg(1, "OPEN")))
     override suspend fun myLegs() = feedResponse
+    override suspend fun coordinatorStats() = Response.success(CoordinatorStatsDto())
     override suspend fun setStatus(id: Long, body: StatusUpdateDto) = Response.success(Unit)
+    override suspend fun noShow(id: Long) = Response.success(Unit)
+    override suspend fun markPaid(id: Long) = Response.success(Unit)
     override suspend fun rate(id: Long, body: RatingDto) = Response.success(Unit)
     override suspend fun feed(area: String?, vehicleType: String?) = feedResponse
     override suspend fun claim(id: Long) = claimResponse
+    override suspend fun setStage(id: Long, body: StageUpdateDto) = Response.success(Unit)
     override suspend fun myClaims() = feedResponse
 }
 

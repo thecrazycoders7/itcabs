@@ -13,6 +13,7 @@ data class UserEntity(
     val role: String,
     val name: String,
     val status: String,
+    val isAdmin: Boolean = false,
 )
 
 fun UserEntity.toDomain() = User(
@@ -20,7 +21,8 @@ fun UserEntity.toDomain() = User(
     phone = phone,
     role = UserRole.valueOf(role),
     name = name,
-    status = UserStatus.valueOf(status)
+    status = UserStatus.valueOf(status),
+    isAdmin = isAdmin
 )
 
 fun User.toEntity() = UserEntity(
@@ -28,5 +30,6 @@ fun User.toEntity() = UserEntity(
     phone = phone,
     role = role.name,
     name = name,
-    status = status.name
+    status = status.name,
+    isAdmin = isAdmin
 )

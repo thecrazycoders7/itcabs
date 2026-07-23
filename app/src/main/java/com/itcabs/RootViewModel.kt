@@ -16,7 +16,7 @@ import javax.inject.Inject
 sealed interface RootState {
     data object Loading : RootState
     data object SignedOut : RootState
-    data class SignedIn(val role: UserRole) : RootState
+    data class SignedIn(val role: UserRole, val isAdmin: Boolean = false) : RootState
 }
 
 @HiltViewModel
@@ -36,7 +36,7 @@ class RootViewModel @Inject constructor(
         viewModelScope.launch {
             auth.getUserFlow().collect { user ->
                 if (user != null) {
-                    _state.value = RootState.SignedIn(user.role)
+                    _state.value = RootState.SignedIn(user.role, user.isAdmin)
                 } else if (_state.value is RootState.SignedIn) {
                     _state.value = RootState.SignedOut
                 }
@@ -58,7 +58,7 @@ class RootViewModel @Inject constructor(
     private suspend fun resolve(): RootState {
         if (!auth.hasSession()) return RootState.SignedOut
         return when (val r = auth.currentUser()) {
-            is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role) } ?: RootState.SignedOut
+            is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role, it.isAdmin) } ?: RootState.SignedOut
             is AppResult.Err -> RootState.SignedOut
         }
     }

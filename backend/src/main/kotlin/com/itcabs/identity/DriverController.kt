@@ -43,13 +43,29 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
     fun myProfile(req: HttpServletRequest): Map<String, Any?> {
         val uid = requireUserId(req)
         val row = db.queryForList(
-            "SELECT vehicle_type, vehicle_reg, kyc_status FROM driver_profiles WHERE user_id = :u",
+            "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows FROM driver_profiles WHERE user_id = :u",
             MapSqlParameterSource("u", uid),
         ).firstOrNull()
         return mapOf(
             "kycStatus" to (row?.get("kyc_status") ?: "NONE"),
             "vehicleType" to row?.get("vehicle_type"),
             "vehicleReg" to row?.get("vehicle_reg"),
+            "tripsCompleted" to (row?.get("trips_completed") ?: 0),
+            "noShows" to (row?.get("no_shows") ?: 0),
+        )
+    }
+
+    /** Admin: drivers waiting on KYC approval — the review queue for the in-app Admin tab. */
+    @GetMapping("/admin/drivers/pending")
+    fun pendingDrivers(req: HttpServletRequest): List<Map<String, Any?>> {
+        requireAdmin(req, db)
+        return db.queryForList(
+            """SELECT u.id, u.name, u.email, p.vehicle_type, p.vehicle_reg,
+                      p.aadhaar_masked, p.rc_number_masked
+                 FROM driver_profiles p JOIN users u ON u.id = p.user_id
+                WHERE p.kyc_status = 'PENDING'
+                ORDER BY u.id""",
+            MapSqlParameterSource(),
         )
     }
 
@@ -62,6 +78,17 @@ class DriverController(private val db: NamedParameterJdbcTemplate) {
             MapSqlParameterSource().addValue("a", admin).addValue("id", id),
         )
         return mapOf("kycStatus" to "VERIFIED")
+    }
+
+    /** Admin: reject a KYC submission (bad/unclear docs). Driver can resubmit — the app shows Complete KYC again. */
+    @PostMapping("/admin/drivers/{id}/reject")
+    fun reject(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+        requireAdmin(req, db)
+        db.update(
+            "UPDATE driver_profiles SET kyc_status='REJECTED' WHERE user_id=:id",
+            MapSqlParameterSource("id", id),
+        )
+        return mapOf("kycStatus" to "REJECTED")
     }
 
     /** Admin: block a user (trust & safety, M4). Blocked users can't sign in or re-register. */

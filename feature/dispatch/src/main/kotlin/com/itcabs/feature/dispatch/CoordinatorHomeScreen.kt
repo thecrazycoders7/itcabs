@@ -76,6 +76,8 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onRateClick = { ratingLegId = it },
         onRepost = viewModel::repost,
         onChat = { chatLegId = it },
+        onNoShow = viewModel::markNoShow,
+        onMarkPaid = viewModel::markPaid,
     )
 
     ratingLegId?.let { id ->
@@ -100,7 +102,11 @@ fun CoordinatorHomeContent(
     onRateClick: (Long) -> Unit = {},
     onRepost: (Long) -> Unit = {},
     onChat: (Long) -> Unit = {},
+    onNoShow: (Long) -> Unit = {},
+    onMarkPaid: (Long) -> Unit = {},
 ) {
+    // Cash still owed to drivers: completed trips not yet settled. High-signal for the coordinator.
+    val outstanding = state.legs.filter { it.status == LegStatus.COMPLETED && !it.paid }.sumOf { it.farePaise }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -130,6 +136,16 @@ fun CoordinatorHomeContent(
             )
         }
 
+        if (outstanding > 0) {
+            Text(
+                "${formatRupees(outstanding)} outstanding to drivers",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+
         when {
             state.loading && state.legs.isEmpty() ->
                 Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -154,6 +170,8 @@ fun CoordinatorHomeContent(
                         onRate = { onRateClick(leg.id) },
                         onRepost = { onRepost(leg.jobId) },
                         onChat = { onChat(leg.id) },
+                        onNoShow = { onNoShow(leg.id) },
+                        onMarkPaid = { onMarkPaid(leg.id) },
                     )
                 }
             }
@@ -192,6 +210,8 @@ private fun CoordinatorLegCard(
     onRate: () -> Unit,
     onRepost: () -> Unit,
     onChat: () -> Unit,
+    onNoShow: () -> Unit,
+    onMarkPaid: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -220,6 +240,24 @@ private fun CoordinatorLegCard(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.secondary
             )
+            // Live trip status the driver is reporting — no need to ping "where are you?".
+            when (leg.tripStage) {
+                "EN_ROUTE" -> "On the way to pickup"
+                "ARRIVED" -> "Arrived at pickup"
+                "STARTED" -> "Trip in progress"
+                else -> null
+            }?.let { stage ->
+                Text(stage, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            }
+            // Reliability at a glance — who you're trusting with the shift.
+            leg.claimedByTrips?.let { trips ->
+                val noShows = leg.claimedByNoShows ?: 0
+                Text(
+                    "$trips trips done" + if (noShows > 0) " · $noShows no-show${if (noShows > 1) "s" else ""}" else "",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (noShows > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         Row(
@@ -239,6 +277,9 @@ private fun CoordinatorLegCard(
                     }
                 }
                 LegStatus.CLAIMED -> {
+                    TextButton(onClick = onNoShow) {
+                        Text("No-show", color = MaterialTheme.colorScheme.error)
+                    }
                     TextButton(onClick = onCancel) {
                         Text("Cancel", color = MaterialTheme.colorScheme.error)
                     }
@@ -247,11 +288,19 @@ private fun CoordinatorLegCard(
                     }
                 }
                 LegStatus.CONFIRMED -> {
+                    TextButton(onClick = onNoShow) {
+                        Text("No-show", color = MaterialTheme.colorScheme.error)
+                    }
                     Button(onClick = onComplete, shape = MaterialTheme.shapes.small) {
                         Text("Mark Completed")
                     }
                 }
                 LegStatus.COMPLETED -> {
+                    if (leg.paid) {
+                        Text("Paid ✓", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    } else {
+                        TextButton(onClick = onMarkPaid) { Text("Mark Paid") }
+                    }
                     TextButton(onClick = onRate) {
                         Text("Rate Driver")
                     }
