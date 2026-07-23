@@ -54,6 +54,10 @@ object NetworkFactory {
 
     private fun retrofit(baseUrl: String, session: TokenSession, debug: Boolean): Retrofit {
         val client = OkHttpClient.Builder()
+            // Free-tier host spins down when idle; the first request must wait out a ~50s cold start,
+            // so give reads generous headroom instead of failing with "network unavailable".
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(70, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor(ConnectivityInterceptor()) // outermost: turn connection failures into a 503 result, not a crash
             .addInterceptor(AuthInterceptor(session))
             .authenticator(TokenAuthenticator(baseUrl, session, json))
