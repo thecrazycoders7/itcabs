@@ -15,7 +15,12 @@ data class DriverProfileDto(
     val available: Boolean = true,
     val avgRating: Double? = null,
     val ratingCount: Int = 0,
+    val phone: String? = null,
+    val phoneVerified: Boolean = false,
 )
+
+@Serializable
+data class PhoneVerifyDto(val idToken: String)
 
 @Serializable
 data class AvailabilityDto(val available: Boolean)

@@ -173,7 +173,7 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
     fun assign(coordinatorId: Long, jobId: Long, driverId: Long): CompanyJobDto {
         val eligible = db.queryForObject(
             """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED')""",
+               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
             MapSqlParameterSource("d", driverId), Boolean::class.java,
         ) ?: false
         if (!eligible) throw badRequest("driver is not verified")
@@ -208,7 +208,7 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
     fun claim(driverId: Long, jobId: Long): CompanyJobDto {
         val eligible = db.queryForObject(
             """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED')""",
+               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
             MapSqlParameterSource("d", driverId), Boolean::class.java,
         ) ?: false
         if (!eligible) throw forbidden("driver not verified")
@@ -216,7 +216,7 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
             """UPDATE company_jobs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), version=version+1
                WHERE id=:id AND status='OPEN'
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED')""",
+                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
             MapSqlParameterSource().addValue("d", driverId).addValue("id", jobId),
         )
         if (won == 0) throw conflict("job already taken")

@@ -13,6 +13,8 @@ data class DriverProfile(
     val available: Boolean = true,
     val avgRating: Double? = null,
     val ratingCount: Int = 0,
+    val phone: String? = null,
+    val phoneVerified: Boolean = false,
 )
 
 /** A driver's public profile shown to the coordinator once the driver is on their job. */

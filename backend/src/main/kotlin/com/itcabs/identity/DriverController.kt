@@ -27,6 +27,16 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
     @PostMapping("/driver/kyc")
     fun submitKyc(req: HttpServletRequest, @RequestBody body: KycInput): Map<String, Any> {
         val uid = requireUserId(req)
+        // Phone must be verified first (spec: even Google-auth drivers verify a mobile number).
+        val phoneVerified = db.queryForObject(
+            "SELECT phone_verified FROM users WHERE id = :u", MapSqlParameterSource("u", uid), Boolean::class.java,
+        ) ?: false
+        if (!phoneVerified) throw com.itcabs.shared.badRequest("verify your phone number before submitting KYC")
+        // Block edits while a submission is already awaiting review (no duplicate/racing submissions).
+        val pending = db.queryForList(
+            "SELECT kyc_status FROM driver_profiles WHERE user_id = :u", MapSqlParameterSource("u", uid),
+        ).firstOrNull()?.get("kyc_status")
+        if (pending == "PENDING") throw com.itcabs.shared.badRequest("your KYC is already under review")
         db.update(
             """INSERT INTO driver_profiles(user_id, vehicle_type, vehicle_reg, aadhaar_ref,
                                            aadhaar_masked, rc_number_masked, photo_url, kyc_status)
@@ -50,11 +60,14 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
             "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows, rejection_reason, available FROM driver_profiles WHERE user_id = :u",
             MapSqlParameterSource("u", uid),
         ).firstOrNull()
+        val user = db.queryForList("SELECT phone, phone_verified FROM users WHERE id = :u", MapSqlParameterSource("u", uid)).first()
         val rating = db.queryForList(
             "SELECT avg(stars)::float AS avg, count(*) AS n FROM ratings WHERE ratee_id = :u",
             MapSqlParameterSource("u", uid),
         ).first()
         return mapOf(
+            "phone" to user["phone"],
+            "phoneVerified" to (user["phone_verified"] ?: false),
             "kycStatus" to (row?.get("kyc_status") ?: "NONE"),
             "vehicleType" to row?.get("vehicle_type"),
             "vehicleReg" to row?.get("vehicle_reg"),

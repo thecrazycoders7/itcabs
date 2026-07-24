@@ -129,7 +129,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
     fun assign(coordinatorId: Long, legId: Long, driverId: Long): LegDto {
         val eligible = db.queryForObject(
             """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED')""",
+               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
             MapSqlParameterSource("d", driverId), Boolean::class.java,
         ) ?: false
         if (!eligible) throw badRequest("driver is not verified")
@@ -280,7 +280,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         // Pre-check only to return a precise 403 vs 409 message; the UPDATE re-checks atomically.
         val eligible = db.queryForObject(
             """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED')""",
+               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
             MapSqlParameterSource("d", driverId), Boolean::class.java,
         ) ?: false
         if (!eligible) throw forbidden("driver not verified")
@@ -289,7 +289,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
             """UPDATE legs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), pickup_otp=:otp, version=version+1
                WHERE id=:id AND status='OPEN'
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED')""",
+                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
             MapSqlParameterSource().addValue("d", driverId).addValue("id", legId).addValue("otp", newOtp()),
         )
         db.update(

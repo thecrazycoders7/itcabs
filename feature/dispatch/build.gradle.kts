@@ -40,6 +40,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // Places autocomplete for per-employee address search (→ exact lat/lng + place_id).
     implementation("com.google.android.libraries.places:places:3.5.0")
+    // Firebase Phone Auth for KYC mobile-number OTP verification.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
     // AutocompleteActivity extends AppCompatActivity — needed on the classpath to reference it.
     implementation("androidx.appcompat:appcompat:1.7.0")
 }

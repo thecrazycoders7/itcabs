@@ -22,6 +22,9 @@ interface DriverApi {
     @POST("api/v1/driver/availability")
     suspend fun setAvailability(@Body body: AvailabilityDto): Response<Map<String, Boolean>>
 
+    @POST("api/v1/driver/verify-phone")
+    suspend fun verifyPhone(@Body body: com.itcabs.core.network.dto.PhoneVerifyDto): Response<Map<String, @JvmSuppressWildcards Any?>>
+
     @GET("api/v1/drivers/{id}/profile")
     suspend fun publicProfile(@Path("id") id: Long): Response<DriverPublicDto>
 

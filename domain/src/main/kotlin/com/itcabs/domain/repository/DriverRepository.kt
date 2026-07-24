@@ -20,6 +20,9 @@ interface DriverRepository {
     /** Toggle whether this driver receives new-trip pushes. */
     suspend fun setAvailability(available: Boolean): AppResult<Unit>
 
+    /** Submit a Firebase phone-auth ID token; backend verifies + marks the number verified. */
+    suspend fun verifyPhone(idToken: String): AppResult<Unit>
+
     /** A driver's public profile (for the coordinator once the driver is on their job). */
     suspend fun publicProfile(driverId: Long): AppResult<com.itcabs.domain.model.PublicDriverProfile>
 

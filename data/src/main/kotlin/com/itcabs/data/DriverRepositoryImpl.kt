@@ -33,11 +33,16 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
             available = dto.available,
             avgRating = dto.avgRating,
             ratingCount = dto.ratingCount,
+            phone = dto.phone,
+            phoneVerified = dto.phoneVerified,
         )
     }
 
     override suspend fun setAvailability(available: Boolean): AppResult<Unit> =
         api.setAvailability(AvailabilityDto(available)).asResult { }
+
+    override suspend fun verifyPhone(idToken: String): AppResult<Unit> =
+        api.verifyPhone(com.itcabs.core.network.dto.PhoneVerifyDto(idToken)).asResult { }
 
     override suspend fun publicProfile(driverId: Long): AppResult<com.itcabs.domain.model.PublicDriverProfile> =
         api.publicProfile(driverId).asResult { d ->
