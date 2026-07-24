@@ -152,6 +152,7 @@ class DispatchController(
         push.notifyUser(
             leg.coordinatorId, "Trip claimed",
             "${leg.claimedByName ?: "A driver"} claimed your ${leg.pickup} → ${leg.drop} trip.",
+            route = "coordinator_jobs",
         )
         return leg
     }

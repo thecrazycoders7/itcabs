@@ -2,6 +2,8 @@ package com.itcabs
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -32,11 +34,20 @@ class ItcabsMessagingService : FirebaseMessagingService() {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Trips", NotificationManager.IMPORTANCE_HIGH),
         )
+        // Tapping opens the app deep-linked to the route the backend sent (e.g. "coordinator_jobs").
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            message.data["route"]?.let { putExtra("route", it) }
+        }
+        val pending = PendingIntent.getActivity(
+            this, 0, tapIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(notification.title)
             .setContentText(notification.body)
             .setAutoCancel(true)
+            .setContentIntent(pending)
             .build()
         nm.notify(System.currentTimeMillis().toInt(), notif)
     }

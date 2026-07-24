@@ -60,10 +60,11 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val route = intent?.getStringExtra("route") // deep-link target from a notification tap
         setContent {
             ItCabsTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    ItCabsApp()
+                    ItCabsApp(route = route)
                 }
             }
         }
@@ -76,7 +77,7 @@ class MainActivity : ComponentActivity() {
  * from the backend (verify response on sign-in, /auth/me on cold start).
  */
 @Composable
-private fun ItCabsApp(root: RootViewModel = hiltViewModel()) {
+private fun ItCabsApp(root: RootViewModel = hiltViewModel(), route: String? = null) {
     val state by root.state.collectAsState()
     // Gentle fade between loading / auth / home so the session gate doesn't snap.
     Crossfade(targetState = state, animationSpec = tween(250), label = "root") { s ->
@@ -86,7 +87,7 @@ private fun ItCabsApp(root: RootViewModel = hiltViewModel()) {
                 webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
                 onSignedIn = { role -> root.onSignedIn(role) },
             )
-            is RootState.SignedIn -> RoleHome(role = s.role, isAdmin = s.isAdmin, onSignOut = { root.signOut() })
+            is RootState.SignedIn -> RoleHome(role = s.role, isAdmin = s.isAdmin, route = route, onSignOut = { root.signOut() })
         }
     }
 }
@@ -106,18 +107,18 @@ private fun LogoTitle(text: String) {
 }
 
 @Composable
-private fun RoleHome(role: UserRole, isAdmin: Boolean, onSignOut: () -> Unit) {
+private fun RoleHome(role: UserRole, isAdmin: Boolean, route: String?, onSignOut: () -> Unit) {
     when (role) {
-        UserRole.DRIVER -> DriverHome(onSignOut)
-        UserRole.COORDINATOR -> CoordinatorHome(isAdmin, onSignOut)
+        UserRole.DRIVER -> DriverHome(startTab = if (route == "driver_company") 2 else 0, onSignOut = onSignOut)
+        UserRole.COORDINATOR -> CoordinatorHome(isAdmin, startTab = if (route == "coordinator_company") 1 else 0, onSignOut = onSignOut)
     }
 }
 
 /** Coordinator: My Jobs + Insights, plus an Admin tab (approve drivers) for is_admin users. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
+private fun CoordinatorHome(isAdmin: Boolean, startTab: Int = 0, onSignOut: () -> Unit) {
+    var tab by remember { mutableIntStateOf(startTab) }
     val title = when (tab) {
         0 -> "IT Cars Dispatch"
         1 -> "Company Jobs"
@@ -174,8 +175,8 @@ private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
 /** Driver home: two tabs — the open-leg feed and the driver's own claimed trips. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DriverHome(onSignOut: () -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
+private fun DriverHome(startTab: Int = 0, onSignOut: () -> Unit) {
+    var tab by remember { mutableIntStateOf(startTab) }
     val title = when (tab) {
         0 -> "Available Trips"
         1 -> "My Trips"

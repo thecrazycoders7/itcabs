@@ -45,7 +45,7 @@ class CompanyJobController(
     fun assign(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: CompanyAssignInput): CompanyJobDto {
         val job = jobs.assign(requireUserId(req), id, body.driverId)
         events.legChanged(id)
-        push.notifyUser(body.driverId, "Trip assigned to you", "You've been assigned a ${job.companyName} ${job.tripType.lowercase()} trip.")
+        push.notifyUser(body.driverId, "Trip assigned to you", "You've been assigned a ${job.companyName} ${job.tripType.lowercase()} trip.", route = "driver_company")
         return job
     }
 
@@ -88,7 +88,7 @@ class CompanyJobController(
     fun claim(req: HttpServletRequest, @PathVariable id: Long): CompanyJobDto {
         val job = jobs.claim(requireUserId(req), id)
         events.legChanged(id)
-        push.notifyUser(job.coordinatorId, "Trip claimed", "${job.claimedByName ?: "A driver"} took your ${job.companyName} trip.")
+        push.notifyUser(job.coordinatorId, "Trip claimed", "${job.claimedByName ?: "A driver"} took your ${job.companyName} trip.", route = "coordinator_company")
         return job
     }
 

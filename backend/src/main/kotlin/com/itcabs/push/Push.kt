@@ -24,13 +24,14 @@ import org.springframework.web.bind.annotation.*
  * credentials (noop), and 'fcm' activates only when itcabs.push.provider=fcm.
  */
 interface PushSender {
-    fun send(tokens: List<String>, title: String, body: String)
+    /** [route] rides as FCM data so a tap can deep-link to the right screen (e.g. "coordinator_jobs"). */
+    fun send(tokens: List<String>, title: String, body: String, route: String? = null)
 }
 
 @Component
 @ConditionalOnProperty(name = ["itcabs.push.provider"], havingValue = "noop", matchIfMissing = true)
 class NoopPushSender : PushSender {
-    override fun send(tokens: List<String>, title: String, body: String) {}
+    override fun send(tokens: List<String>, title: String, body: String, route: String?) {}
 }
 
 @Component
@@ -51,12 +52,13 @@ class FcmPushSender(
         }
     }
 
-    override fun send(tokens: List<String>, title: String, body: String) {
+    override fun send(tokens: List<String>, title: String, body: String, route: String?) {
         val fm = FirebaseMessaging.getInstance()
         tokens.forEach { token ->
             val msg = Message.builder()
                 .setToken(token)
                 .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+                .apply { route?.let { putData("route", it) } }
                 .build()
             runCatching { fm.send(msg) }.onFailure { log.warn("FCM send failed: {}", it.message) }
         }
@@ -77,12 +79,12 @@ class PushService(
     }
 
     /** Push to a single user's registered devices (KYC decisions, claim alerts, etc.). No-op if none. */
-    fun notifyUser(userId: Long, title: String, body: String) {
+    fun notifyUser(userId: Long, title: String, body: String, route: String? = null) {
         val tokens = db.queryForList(
             "SELECT token FROM push_tokens WHERE user_id = :u",
             MapSqlParameterSource("u", userId), String::class.java,
         )
-        if (tokens.isNotEmpty()) sender.send(tokens, title, body)
+        if (tokens.isNotEmpty()) sender.send(tokens, title, body, route)
     }
 
     /**
@@ -98,7 +100,7 @@ class PushService(
                   AND p.available = true""",
             MapSqlParameterSource(), String::class.java,
         )
-        if (tokens.isNotEmpty()) sender.send(tokens, "New trip available", "A new trip to $office was just posted.")
+        if (tokens.isNotEmpty()) sender.send(tokens, "New trip available", "A new trip to $office was just posted.", route = "driver_available")
     }
 }
 
