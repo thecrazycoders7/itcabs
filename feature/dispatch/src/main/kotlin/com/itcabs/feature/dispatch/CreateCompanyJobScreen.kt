@@ -1,5 +1,8 @@
 package com.itcabs.feature.dispatch
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +20,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,23 +40,45 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.itcabs.domain.model.Area
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.widget.Autocomplete
+import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import com.itcabs.domain.model.NewCompanyJob
 import com.itcabs.domain.model.NewStop
 import com.itcabs.domain.model.TripType
 
-/** One employee stop in the create form. Location is picked from the area gazetteer (→ coords). */
-private data class StopForm(val name: String = "", val area: String = "", val phone: String = "")
+/** One employee stop: employee + a Google Places location (address + exact coords + place_id). */
+private data class StopForm(
+    val name: String = "",
+    val address: String = "",
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val placeId: String? = null,
+    val phone: String = "",
+)
 
 /** Coordinator create flow: one company + trip type + ordered employee stops, one cab. */
 @Composable
 fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
     LaunchedEffect(state.published) { if (state.published) onDone() }
+
+    // Places SDK reads the API key from the manifest meta-data; init once.
+    LaunchedEffect(Unit) {
+        if (!Places.isInitialized()) {
+            val key = context.packageManager
+                .getApplicationInfo(context.packageName, android.content.pm.PackageManager.GET_META_DATA)
+                .metaData?.getString("com.google.android.geo.API_KEY")
+            if (!key.isNullOrBlank()) Places.initialize(context.applicationContext, key)
+        }
+    }
 
     var company by remember { mutableStateOf("") }
     var tripType by remember { mutableStateOf(TripType.DROP) }
@@ -62,6 +86,29 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
     var vehicle by remember { mutableStateOf("Sedan") }
     var fare by remember { mutableStateOf("") }
     var stops by remember { mutableStateOf(listOf(StopForm())) }
+    var searchIndex by remember { mutableStateOf(-1) }
+
+    // Places autocomplete returns a Place → fill the stop being searched.
+    val placesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        if (res.resultCode == Activity.RESULT_OK && searchIndex in stops.indices) {
+            res.data?.let { data ->
+                val p = Autocomplete.getPlaceFromIntent(data)
+                stops = stops.mapIndexed { j, s ->
+                    if (j == searchIndex) s.copy(
+                        address = p.address ?: p.name ?: s.address,
+                        lat = p.latLng?.latitude, lng = p.latLng?.longitude, placeId = p.id,
+                    ) else s
+                }
+            }
+        }
+    }
+    fun launchSearch(i: Int) {
+        searchIndex = i
+        val fields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
+        placesLauncher.launch(
+            Autocomplete.IntentBuilder(AutocompleteActivityMode.OVERLAY, fields).setCountries(listOf("IN")).build(context),
+        )
+    }
 
     val canPublish = company.isNotBlank() && fare.toLongOrNull() != null &&
         stops.isNotEmpty() && stops.all { it.name.isNotBlank() }
@@ -100,12 +147,12 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
         stops.forEachIndexed { i, s ->
             StopCard(
-                index = i, stop = s, areas = state.areas, canRemove = stops.size > 1,
-                canUp = i > 0, canDown = i < stops.size - 1,
+                index = i, stop = s, canRemove = stops.size > 1, canUp = i > 0, canDown = i < stops.size - 1,
                 onChange = { upd -> stops = stops.mapIndexed { j, x -> if (j == i) upd else x } },
                 onRemove = { stops = stops.filterIndexed { j, _ -> j != i } },
                 onUp = { stops = stops.toMutableList().also { it.add(i - 1, it.removeAt(i)) } },
                 onDown = { stops = stops.toMutableList().also { it.add(i + 1, it.removeAt(i)) } },
+                onSearch = { launchSearch(i) },
             )
         }
 
@@ -113,15 +160,11 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
         Button(
             onClick = {
-                val byName = state.areas.associateBy { it.name.lowercase() }
                 viewModel.create(
                     NewCompanyJob(
                         companyName = company, tripType = tripType, office = office, vehicleType = vehicle,
                         farePaise = (fare.toLongOrNull() ?: 0) * 100,
-                        stops = stops.map { f ->
-                            val a: Area? = byName[f.area.lowercase()]
-                            NewStop(employeeName = f.name, address = f.area, lat = a?.lat, lng = a?.lng, phone = f.phone)
-                        },
+                        stops = stops.map { f -> NewStop(f.name, f.address, f.lat, f.lng, f.placeId, f.phone) },
                     ),
                 )
             },
@@ -137,8 +180,8 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
 @Composable
 private fun StopCard(
-    index: Int, stop: StopForm, areas: List<Area>, canRemove: Boolean, canUp: Boolean, canDown: Boolean,
-    onChange: (StopForm) -> Unit, onRemove: () -> Unit, onUp: () -> Unit, onDown: () -> Unit,
+    index: Int, stop: StopForm, canRemove: Boolean, canUp: Boolean, canDown: Boolean,
+    onChange: (StopForm) -> Unit, onRemove: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onSearch: () -> Unit,
 ) {
     Card {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -150,24 +193,15 @@ private fun StopCard(
             }
         }
         LblField("Employee name", stop.name, { onChange(stop.copy(name = it)) }, "Name")
-        AreaDropdownField(stop.area, areas.map { it.name }) { onChange(stop.copy(area = it)) }
-        LblField("Phone (optional)", stop.phone, { onChange(stop.copy(phone = it)) }, "10-digit")
-    }
-}
-
-@Composable
-private fun AreaDropdownField(selected: String, options: List<String>, onSelect: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Column {
-        Text("Location (area)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedButton(onClick = { open = true }, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
-            Text(selected.ifBlank { "Choose area…" }, modifier = Modifier.fillMaxWidth())
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { name ->
-                DropdownMenuItem(text = { Text(name) }, onClick = { onSelect(name); open = false })
+        // Google Places search → exact address + coords.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Location", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = onSearch, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Place, null, Modifier.height(18.dp))
+                Text("  " + stop.address.ifBlank { "Search location…" }, modifier = Modifier.fillMaxWidth())
             }
         }
+        LblField("Phone (optional)", stop.phone, { onChange(stop.copy(phone = it)) }, "10-digit")
     }
 }
 

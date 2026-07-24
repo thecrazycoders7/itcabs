@@ -38,4 +38,6 @@ dependencies {
     implementation("com.google.maps.android:maps-compose:6.1.2")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // Places autocomplete for per-employee address search (→ exact lat/lng + place_id).
+    implementation("com.google.android.libraries.places:places:3.5.0")
 }
