@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,6 +54,7 @@ import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.widget.Autocomplete
 import com.google.android.libraries.places.widget.AutocompleteActivity
 import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
+import com.itcabs.domain.model.Area
 import com.itcabs.domain.model.NewCompanyJob
 import com.itcabs.domain.model.NewStop
 import com.itcabs.domain.model.TripType
@@ -163,7 +167,7 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
         stops.forEachIndexed { i, s ->
             StopCard(
-                index = i, stop = s, canRemove = stops.size > 1, canUp = i > 0, canDown = i < stops.size - 1,
+                index = i, stop = s, areas = state.areas, canRemove = stops.size > 1, canUp = i > 0, canDown = i < stops.size - 1,
                 onChange = { upd -> stops = stops.mapIndexed { j, x -> if (j == i) upd else x } },
                 onRemove = { stops = stops.filterIndexed { j, _ -> j != i } },
                 onUp = { stops = stops.toMutableList().also { it.add(i - 1, it.removeAt(i)) } },
@@ -197,9 +201,10 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
 @Composable
 private fun StopCard(
-    index: Int, stop: StopForm, canRemove: Boolean, canUp: Boolean, canDown: Boolean,
+    index: Int, stop: StopForm, areas: List<Area>, canRemove: Boolean, canUp: Boolean, canDown: Boolean,
     onChange: (StopForm) -> Unit, onRemove: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onSearch: () -> Unit,
 ) {
+    var areaMenu by remember { mutableStateOf(false) }
     Card {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text("STOP ${index + 1}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -210,12 +215,24 @@ private fun StopCard(
             }
         }
         LblField("Employee name", stop.name, { onChange(stop.copy(name = it)) }, "Name")
-        // Google Places search → exact address + coords.
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Location", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Precise: Google Places search → exact address + coords (needs active billing).
             OutlinedButton(onClick = onSearch, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Place, null, Modifier.height(18.dp))
                 Text("  " + stop.address.ifBlank { "Search location…" }, modifier = Modifier.fillMaxWidth())
+            }
+            // Fallback: quick-pick an area centroid — works without Places/billing.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { areaMenu = true }) { Text("or pick area") }
+                DropdownMenu(expanded = areaMenu, onDismissRequest = { areaMenu = false }) {
+                    areas.forEach { a ->
+                        DropdownMenuItem(text = { Text(a.name) }, onClick = {
+                            onChange(stop.copy(address = a.name, lat = a.lat, lng = a.lng, placeId = null))
+                            areaMenu = false
+                        })
+                    }
+                }
             }
         }
         LblField("Phone (optional)", stop.phone, { onChange(stop.copy(phone = it)) }, "10-digit")
