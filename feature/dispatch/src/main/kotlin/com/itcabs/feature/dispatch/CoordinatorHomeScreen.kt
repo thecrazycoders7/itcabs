@@ -61,12 +61,17 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
     var chatLegId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editLeg by remember { mutableStateOf<Leg?>(null) }
     var assignLeg by remember { mutableStateOf<Leg?>(null) }
+    var mapLeg by remember { mutableStateOf<Leg?>(null) }
     var showTemplates by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
 
     chatLegId?.let { id ->
         ChatScreen(legId = id, onBack = { chatLegId = null })
+        return
+    }
+    mapLeg?.let { leg ->
+        TripMapScreen(legId = leg.id, area = leg.area, pickupLabel = leg.pickup, onBack = { mapLeg = null })
         return
     }
     if (showCreate) {
@@ -92,6 +97,7 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onAssign = { assignLeg = it; viewModel.loadDrivers() },
         onExport = { shareCsv(context, state.legs) },
         onTemplates = { showTemplates = true; viewModel.loadTemplates() },
+        onMap = { mapLeg = it },
     )
 
     ratingLegId?.let { id ->
@@ -132,6 +138,7 @@ fun CoordinatorHomeContent(
     onAssign: (Leg) -> Unit = {},
     onExport: () -> Unit = {},
     onTemplates: () -> Unit = {},
+    onMap: (Leg) -> Unit = {},
 ) {
     val outstanding = state.legs.filter { it.status == LegStatus.COMPLETED && !it.paid }.sumOf { it.farePaise }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -200,6 +207,7 @@ fun CoordinatorHomeContent(
                         onRepost = { onRepost(leg.jobId) }, onChat = { onChat(leg.id) },
                         onNoShow = { onNoShow(leg.id) }, onMarkPaid = { onMarkPaid(leg.id) },
                         onEdit = { onEdit(leg) }, onAssign = { onAssign(leg) },
+                        onMap = { onMap(leg) },
                     )
                 }
             }
@@ -220,6 +228,7 @@ private fun CoordinatorLegCard(
     onMarkPaid: () -> Unit,
     onEdit: () -> Unit,
     onAssign: () -> Unit,
+    onMap: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
@@ -262,6 +271,10 @@ private fun CoordinatorLegCard(
         Row(Modifier.fillMaxWidth(), Arrangement.End, Alignment.CenterVertically) {
             TextButton(onClick = onRepost) { Text("Repost") }
             if (leg.claimedByName != null) TextButton(onClick = onChat) { Text("Chat") }
+            // Live map (pickup pin + driver marker + ETA) once a driver is on the trip.
+            if (leg.status == LegStatus.CLAIMED || leg.status == LegStatus.CONFIRMED) {
+                TextButton(onClick = onMap) { Text("Map") }
+            }
             when (leg.status) {
                 LegStatus.OPEN -> {
                     TextButton(onClick = onEdit) { Text("Edit") }

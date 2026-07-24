@@ -32,4 +32,10 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
+
+    // Google Maps: trip map view + live driver marker. ETA is computed locally from live location
+    // (Distance Matrix is a web service and can't use this Android-restricted key).
+    implementation("com.google.maps.android:maps-compose:6.1.2")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
