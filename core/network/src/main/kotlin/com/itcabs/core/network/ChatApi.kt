@@ -20,4 +20,10 @@ interface ChatApi {
 
     @POST("api/v1/legs/{id}/messages")
     suspend fun send(@Path("id") legId: Long, @Body body: SendMessageDto): Response<MessageDto>
+
+    @GET("api/v1/company-jobs/{id}/messages")
+    suspend fun companyMessages(@Path("id") jobId: Long): Response<List<MessageDto>>
+
+    @POST("api/v1/company-jobs/{id}/messages")
+    suspend fun companySend(@Path("id") jobId: Long, @Body body: SendMessageDto): Response<MessageDto>
 }

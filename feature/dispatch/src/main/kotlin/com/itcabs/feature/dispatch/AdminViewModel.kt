@@ -3,6 +3,7 @@ package com.itcabs.feature.dispatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
+import com.itcabs.domain.model.AdminDriver
 import com.itcabs.domain.model.PendingDriver
 import com.itcabs.domain.repository.DriverRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,6 +16,7 @@ import javax.inject.Inject
 
 data class AdminUiState(
     val pending: List<PendingDriver> = emptyList(),
+    val drivers: List<AdminDriver> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
 )
@@ -33,6 +35,7 @@ class AdminViewModel @Inject constructor(
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
+            (drivers.allDrivers() as? AppResult.Ok)?.let { r -> _state.update { it.copy(drivers = r.value) } }
             when (val r = drivers.pendingDrivers()) {
                 is AppResult.Ok -> _state.update { it.copy(loading = false, pending = r.value) }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = r.message) }
@@ -41,8 +44,9 @@ class AdminViewModel @Inject constructor(
     }
 
     fun verify(driverId: Long) = act(driverId) { drivers.verifyDriver(it) }
-
     fun reject(driverId: Long, reason: String?) = act(driverId) { drivers.rejectDriver(it, reason) }
+    fun block(userId: Long) = act(userId) { drivers.blockUser(it) }
+    fun unblock(userId: Long) = act(userId) { drivers.unblockUser(it) }
 
     private fun act(driverId: Long, action: suspend (Long) -> AppResult<Unit>) {
         _state.update { it.copy(error = null) }

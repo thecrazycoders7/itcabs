@@ -52,26 +52,42 @@ fun AdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp))
         }
 
-        when {
-            state.loading && state.pending.isEmpty() ->
-                Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-            state.pending.isEmpty() ->
-                Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    Text(
-                        "No drivers waiting for approval.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            else -> LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(state.pending, key = { it.id }) { d ->
-                    PendingDriverCard(d, onVerify = { viewModel.verify(d.id) }, onReject = { reason -> viewModel.reject(d.id, reason) })
-                }
+        if (state.loading && state.pending.isEmpty() && state.drivers.isEmpty()) {
+            Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+        } else LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { Text("Pending approvals", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+            if (state.pending.isEmpty()) item { Text("None waiting.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            items(state.pending, key = { "p-${it.id}" }) { d ->
+                PendingDriverCard(d, onVerify = { viewModel.verify(d.id) }, onReject = { reason -> viewModel.reject(d.id, reason) })
+            }
+            // Roster: block/unblock any driver (trust & safety).
+            item { Text("All drivers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp)) }
+            items(state.drivers, key = { "d-${it.id}" }) { d ->
+                DriverRosterRow(d, onBlock = { viewModel.block(d.id) }, onUnblock = { viewModel.unblock(d.id) })
             }
         }
+    }
+}
+
+@Composable
+private fun DriverRosterRow(driver: com.itcabs.domain.model.AdminDriver, onBlock: () -> Unit, onUnblock: () -> Unit) {
+    val blocked = driver.status == "BLOCKED"
+    Row(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(driver.name.ifBlank { "Driver ${driver.id}" }, fontWeight = FontWeight.Medium,
+                color = if (blocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            Text("${driver.kycStatus.name} · ${driver.tripsCompleted} trips" + if (driver.noShows > 0) " · ${driver.noShows} no-shows" else "" + if (blocked) " · BLOCKED" else "",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (blocked) TextButton(onClick = onUnblock) { Text("Unblock") }
+        else TextButton(onClick = onBlock) { Text("Block", color = MaterialTheme.colorScheme.error) }
     }
 }
 

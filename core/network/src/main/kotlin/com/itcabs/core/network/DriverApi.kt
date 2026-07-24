@@ -25,6 +25,15 @@ interface DriverApi {
     @GET("api/v1/drivers/{id}/profile")
     suspend fun publicProfile(@Path("id") id: Long): Response<DriverPublicDto>
 
+    @GET("api/v1/admin/drivers")
+    suspend fun allDrivers(): Response<List<com.itcabs.core.network.dto.AdminDriverDto>>
+
+    @POST("api/v1/admin/users/{id}/block")
+    suspend fun blockUser(@Path("id") id: Long): Response<Map<String, String>>
+
+    @POST("api/v1/admin/users/{id}/unblock")
+    suspend fun unblockUser(@Path("id") id: Long): Response<Map<String, String>>
+
     // admin (is_admin-gated server-side)
     @GET("api/v1/admin/drivers/pending")
     suspend fun pendingDrivers(): Response<List<PendingDriverDto>>

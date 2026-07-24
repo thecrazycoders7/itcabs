@@ -46,6 +46,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
     var assignJob by remember { mutableStateOf<CompanyJob?>(null) }
     var driverProfileId by remember { mutableStateOf<Long?>(null) }
     var mapJob by remember { mutableStateOf<CompanyJob?>(null) }
+    var chatJob by remember { mutableStateOf<CompanyJob?>(null) }
     val state by viewModel.state.collectAsState()
 
     if (showCreate) {
@@ -53,6 +54,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
         return
     }
     mapJob?.let { CompanyRouteMapScreen(job = it, onBack = { mapJob = null }, track = true); return }
+    chatJob?.let { ChatScreen(legId = it.id, onBack = { chatJob = null }, companyJob = true); return }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val context = androidx.compose.ui.platform.LocalContext.current
@@ -87,6 +89,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
                         onMarkPaid = { viewModel.markPaid(job.id) },
                         onDriverProfile = { job.claimedBy?.let { driverProfileId = it } },
                         onMap = { mapJob = job },
+                        onChat = { chatJob = job },
                     )
                 }
             }
@@ -100,7 +103,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onNoShow: () -> Unit, onMarkPaid: () -> Unit, onDriverProfile: () -> Unit, onMap: () -> Unit) {
+private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onNoShow: () -> Unit, onMarkPaid: () -> Unit, onDriverProfile: () -> Unit, onMap: () -> Unit, onChat: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(16.dp),
@@ -116,7 +119,10 @@ private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("Driver: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
                 Row {
-                    if (job.status == LegStatus.CLAIMED || job.status == LegStatus.CONFIRMED) TextButton(onClick = onMap) { Text("Map") }
+                    if (job.status == LegStatus.CLAIMED || job.status == LegStatus.CONFIRMED) {
+                        TextButton(onClick = onChat) { Text("Chat") }
+                        TextButton(onClick = onMap) { Text("Map") }
+                    }
                     TextButton(onClick = onDriverProfile) { Text("Profile") }
                 }
             }

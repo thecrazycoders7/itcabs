@@ -50,10 +50,12 @@ import com.itcabs.domain.model.LegStatus
 fun DriverCompanyScreen(viewModel: DriverCompanyViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     var mapJob by remember { mutableStateOf<CompanyJob?>(null) }
+    var chatJob by remember { mutableStateOf<CompanyJob?>(null) }
     var otpStop by remember { mutableStateOf<JobStop?>(null) }
     val context = LocalContext.current
 
     mapJob?.let { CompanyRouteMapScreen(job = it, onBack = { mapJob = null }); return }
+    chatJob?.let { ChatScreen(legId = it.id, onBack = { chatJob = null }, companyJob = true); return }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -69,7 +71,7 @@ fun DriverCompanyScreen(viewModel: DriverCompanyViewModel = hiltViewModel()) {
                 item { Text("My trips", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
                 items(state.trips, key = { "t-${it.id}" }) { job ->
                     MyCompanyTripCard(job, onMap = { mapJob = job }, onConfirm = { otpStop = it },
-                        onNavigate = { stop -> navigateTo(context, stop) },
+                        onNavigate = { stop -> navigateTo(context, stop) }, onChat = { chatJob = job },
                         onRelease = { viewModel.release(job.id) }, onComplete = { viewModel.complete(job.id) })
                 }
             }
@@ -123,7 +125,7 @@ private fun FeedCompanyCard(job: CompanyJob, claiming: Boolean, onClaim: () -> U
 }
 
 @Composable
-private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (JobStop) -> Unit, onNavigate: (JobStop) -> Unit, onRelease: () -> Unit, onComplete: () -> Unit) {
+private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (JobStop) -> Unit, onNavigate: (JobStop) -> Unit, onChat: () -> Unit, onRelease: () -> Unit, onComplete: () -> Unit) {
     CardBox {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(job.companyName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -151,6 +153,7 @@ private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (Jo
             }
         }
         Row(Modifier.fillMaxWidth(), Arrangement.End, Alignment.CenterVertically) {
+            TextButton(onClick = onChat) { Text("Chat") }
             TextButton(onClick = onMap) { Icon(Icons.Filled.Map, null, Modifier.size(16.dp)); Text(" Map") }
             // Release only before any pickup has happened (honest early bail-out).
             if (active && !anyPicked) TextButton(onClick = onRelease) { Text("Release", color = MaterialTheme.colorScheme.error) }

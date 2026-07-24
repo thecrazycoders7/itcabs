@@ -62,4 +62,18 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
 
     override suspend fun rejectDriver(driverId: Long, reason: String?): AppResult<Unit> =
         api.rejectDriver(driverId, RejectInputDto(reason)).asResult { }
+
+    override suspend fun allDrivers(): AppResult<List<com.itcabs.domain.model.AdminDriver>> =
+        api.allDrivers().asResult { list ->
+            list.map {
+                com.itcabs.domain.model.AdminDriver(
+                    it.id, it.name ?: "", it.status,
+                    runCatching { KycStatus.valueOf(it.kycStatus ?: "NONE") }.getOrDefault(KycStatus.NONE),
+                    it.tripsCompleted, it.noShows,
+                )
+            }
+        }
+
+    override suspend fun blockUser(userId: Long): AppResult<Unit> = api.blockUser(userId).asResult { }
+    override suspend fun unblockUser(userId: Long): AppResult<Unit> = api.unblockUser(userId).asResult { }
 }

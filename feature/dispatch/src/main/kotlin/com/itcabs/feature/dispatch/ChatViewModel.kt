@@ -33,13 +33,15 @@ class ChatViewModel @Inject constructor(
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var legId: Long = -1
+    private var companyJob: Boolean = false
     private var started = false
 
-    /** Bind to a leg's thread: load who-am-I + messages, and refresh live on WS events. */
-    fun open(legId: Long) {
+    /** Bind to a thread (leg or company job): load who-am-I + messages, refresh live on WS events. */
+    fun open(legId: Long, companyJob: Boolean = false) {
         if (started) return
         started = true
         this.legId = legId
+        this.companyJob = companyJob
         viewModelScope.launch {
             (auth.currentUser() as? AppResult.Ok)?.value?.let { u -> _state.update { it.copy(myUserId = u.id) } }
         }
@@ -51,7 +53,7 @@ class ChatViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            when (val result = chat.messages(legId)) {
+            when (val result = chat.messages(legId, companyJob)) {
                 is AppResult.Ok -> _state.update { it.copy(messages = result.value) }
                 is AppResult.Err -> _state.update { it.copy(error = result.message) }
             }
@@ -63,7 +65,7 @@ class ChatViewModel @Inject constructor(
         if (body.isEmpty()) return
         _state.update { it.copy(input = "") }
         viewModelScope.launch {
-            when (val result = chat.send(legId, body)) {
+            when (val result = chat.send(legId, body, companyJob)) {
                 is AppResult.Ok -> refresh()
                 is AppResult.Err -> _state.update { it.copy(error = result.message) }
             }

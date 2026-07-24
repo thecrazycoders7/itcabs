@@ -63,4 +63,42 @@ class ChatController(
         ) ?: false
         if (!ok) throw forbidden("not a participant of this leg")
     }
+
+    // --- company-job chat (same rules, keyed by job) ---
+
+    @GetMapping("/company-jobs/{id}/messages")
+    fun companyList(req: HttpServletRequest, @PathVariable id: Long): List<MessageDto> {
+        requireCompanyParticipant(requireUserId(req), id)
+        return db.query(
+            "SELECT id, job_id, sender_id, body, created_at FROM company_job_messages WHERE job_id=:j ORDER BY created_at",
+            MapSqlParameterSource("j", id),
+        ) { rs, _ ->
+            MessageDto(rs.getLong("id"), rs.getLong("job_id"), rs.getLong("sender_id"),
+                rs.getString("body"), rs.getTimestamp("created_at").toInstant().toString())
+        }
+    }
+
+    @PostMapping("/company-jobs/{id}/messages")
+    fun companySend(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: MessageInput): MessageDto {
+        val uid = requireUserId(req)
+        requireCompanyParticipant(uid, id)
+        if (body.body.isBlank()) throw badRequest("message body required")
+        val row = db.queryForMap(
+            """INSERT INTO company_job_messages(job_id, sender_id, body) VALUES (:j,:s,:b)
+               RETURNING id, job_id, sender_id, body, created_at""",
+            MapSqlParameterSource().addValue("j", id).addValue("s", uid).addValue("b", body.body.trim()),
+        )
+        events.messagePosted(id)
+        return MessageDto((row["id"] as Number).toLong(), (row["job_id"] as Number).toLong(),
+            (row["sender_id"] as Number).toLong(), row["body"] as String,
+            (row["created_at"] as java.sql.Timestamp).toInstant().toString())
+    }
+
+    private fun requireCompanyParticipant(userId: Long, jobId: Long) {
+        val ok = db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM company_jobs WHERE id=:j AND (coordinator_id=:u OR claimed_by=:u))",
+            MapSqlParameterSource().addValue("j", jobId).addValue("u", userId), Boolean::class.java,
+        ) ?: false
+        if (!ok) throw forbidden("not a participant of this job")
+    }
 }

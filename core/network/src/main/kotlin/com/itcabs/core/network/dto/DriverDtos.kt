@@ -20,6 +20,17 @@ data class DriverProfileDto(
 @Serializable
 data class AvailabilityDto(val available: Boolean)
 
+/** GET /admin/drivers — roster with status for block/unblock. */
+@Serializable
+data class AdminDriverDto(
+    val id: Long,
+    val name: String? = null,
+    val status: String = "ACTIVE",
+    val kycStatus: String? = null,
+    val tripsCompleted: Int = 0,
+    val noShows: Int = 0,
+)
+
 /** GET /drivers/{id}/profile — a driver's public profile for the coordinator. */
 @Serializable
 data class DriverPublicDto(

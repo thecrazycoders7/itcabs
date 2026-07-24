@@ -31,6 +31,16 @@ data class PublicDriverProfile(
     val ratingCount: Int,
 )
 
+/** A driver row in the admin roster (for block/unblock). */
+data class AdminDriver(
+    val id: Long,
+    val name: String,
+    val status: String,      // ACTIVE / BLOCKED
+    val kycStatus: KycStatus,
+    val tripsCompleted: Int,
+    val noShows: Int,
+)
+
 /** A driver awaiting KYC approval, shown in the admin review queue. */
 data class PendingDriver(
     val id: Long,

@@ -30,8 +30,8 @@ import com.itcabs.domain.model.ChatMessage
 
 /** Per-leg chat: coordinator ↔ claiming driver. Live updates arrive via the WebSocket (M7). */
 @Composable
-fun ChatScreen(legId: Long, onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
-    LaunchedEffect(legId) { viewModel.open(legId) }
+fun ChatScreen(legId: Long, onBack: () -> Unit, companyJob: Boolean = false, viewModel: ChatViewModel = hiltViewModel()) {
+    LaunchedEffect(legId) { viewModel.open(legId, companyJob) }
     val state by viewModel.state.collectAsState()
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

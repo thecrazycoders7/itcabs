@@ -27,4 +27,7 @@ interface DriverRepository {
     suspend fun pendingDrivers(): AppResult<List<PendingDriver>>
     suspend fun verifyDriver(driverId: Long): AppResult<Unit>
     suspend fun rejectDriver(driverId: Long, reason: String?): AppResult<Unit>
+    suspend fun allDrivers(): AppResult<List<com.itcabs.domain.model.AdminDriver>>
+    suspend fun blockUser(userId: Long): AppResult<Unit>
+    suspend fun unblockUser(userId: Long): AppResult<Unit>
 }

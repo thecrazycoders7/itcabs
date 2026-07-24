@@ -111,6 +111,18 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         )
     }
 
+    /** Admin: all drivers with status — the roster for block/unblock in the Admin tab. */
+    @GetMapping("/admin/drivers")
+    fun allDrivers(req: HttpServletRequest): List<Map<String, Any?>> {
+        requireAdmin(req, db)
+        return db.queryForList(
+            """SELECT u.id, u.name, u.status, p.kyc_status, p.trips_completed, p.no_shows
+                 FROM users u JOIN driver_profiles p ON p.user_id = u.id
+                WHERE u.role='DRIVER' ORDER BY u.status, u.name""",
+            MapSqlParameterSource(),
+        )
+    }
+
     // Admin-only (is_admin flag). Stands in for the admin-console verification action.
     @PostMapping("/admin/drivers/{id}/verify")
     fun verify(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
