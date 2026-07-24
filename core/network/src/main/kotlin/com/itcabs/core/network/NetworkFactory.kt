@@ -29,6 +29,9 @@ object NetworkFactory {
     fun chatApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): ChatApi =
         retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(ChatApi::class.java)
 
+    fun companyJobApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): CompanyJobApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(CompanyJobApi::class.java)
+
     /** Supabase GoTrue auth. Base URL = the Supabase project URL; the anon key rides as the apikey header. */
     fun supabaseAuthApi(supabaseUrl: String, anonKey: String): SupabaseAuthApi {
         val client = OkHttpClient.Builder()

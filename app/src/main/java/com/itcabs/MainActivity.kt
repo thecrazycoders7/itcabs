@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,7 +48,9 @@ import com.itcabs.domain.model.UserRole
 import com.itcabs.feature.auth.AuthScreen
 import com.itcabs.feature.auth.ProfileScreen
 import com.itcabs.feature.dispatch.AdminScreen
+import com.itcabs.feature.dispatch.CompanyJobsScreen
 import com.itcabs.feature.dispatch.CoordinatorHomeScreen
+import com.itcabs.feature.dispatch.DriverCompanyScreen
 import com.itcabs.feature.dispatch.DriverFeedScreen
 import com.itcabs.feature.dispatch.MyTripsScreen
 import com.itcabs.feature.dispatch.StatsScreen
@@ -117,7 +120,8 @@ private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     val title = when (tab) {
         0 -> "IT Cars Dispatch"
-        1 -> "Insights"
+        1 -> "Company Jobs"
+        2 -> "Insights"
         else -> "Admin"
     }
     Scaffold(
@@ -133,17 +137,23 @@ private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
                     selected = tab == 0,
                     onClick = { tab = 0 },
                     icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                    label = { Text("My Jobs") },
+                    label = { Text("Legs") },
                 )
                 NavigationBarItem(
                     selected = tab == 1,
                     onClick = { tab = 1 },
+                    icon = { Icon(Icons.Filled.Business, contentDescription = null) },
+                    label = { Text("Company") },
+                )
+                NavigationBarItem(
+                    selected = tab == 2,
+                    onClick = { tab = 2 },
                     icon = { Icon(Icons.Filled.BarChart, contentDescription = null) },
                     label = { Text("Insights") },
                 )
                 if (isAdmin) NavigationBarItem(
-                    selected = tab == 2,
-                    onClick = { tab = 2 },
+                    selected = tab == 3,
+                    onClick = { tab = 3 },
                     icon = { Icon(Icons.Filled.Person, contentDescription = null) },
                     label = { Text("Admin") },
                 )
@@ -153,7 +163,8 @@ private fun CoordinatorHome(isAdmin: Boolean, onSignOut: () -> Unit) {
         Crossfade(targetState = tab, animationSpec = tween(200), modifier = Modifier.padding(padding), label = "coordTab") { t ->
             when (t) {
                 0 -> CoordinatorHomeScreen()
-                1 -> StatsScreen()
+                1 -> CompanyJobsScreen()
+                2 -> StatsScreen()
                 else -> AdminScreen()
             }
         }
@@ -168,6 +179,7 @@ private fun DriverHome(onSignOut: () -> Unit) {
     val title = when (tab) {
         0 -> "Available Trips"
         1 -> "My Trips"
+        2 -> "Company Trips"
         else -> "Profile"
     }
     Scaffold(
@@ -194,6 +206,12 @@ private fun DriverHome(onSignOut: () -> Unit) {
                 NavigationBarItem(
                     selected = tab == 2,
                     onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.Business, contentDescription = null) },
+                    label = { Text("Company") },
+                )
+                NavigationBarItem(
+                    selected = tab == 3,
+                    onClick = { tab = 3 },
                     icon = { Icon(Icons.Filled.Person, contentDescription = null) },
                     label = { Text("Profile") },
                 )
@@ -204,6 +222,7 @@ private fun DriverHome(onSignOut: () -> Unit) {
             when (t) {
                 0 -> DriverFeedScreen()
                 1 -> MyTripsScreen()
+                2 -> DriverCompanyScreen()
                 else -> ProfileScreen(onSignOut = onSignOut)
             }
         }

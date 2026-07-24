@@ -109,4 +109,14 @@ object AppModule {
     @Singleton
     fun dispatchRepository(api: DispatchApi, dao: LegDao, realtime: RealtimeClient): DispatchRepository =
         DispatchRepositoryImpl(api, dao, realtime)
+
+    @Provides
+    @Singleton
+    fun companyJobApi(tokenStore: TokenStore): com.itcabs.core.network.CompanyJobApi =
+        NetworkFactory.companyJobApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
+
+    @Provides
+    @Singleton
+    fun companyJobRepository(api: com.itcabs.core.network.CompanyJobApi): com.itcabs.domain.repository.CompanyJobRepository =
+        com.itcabs.data.CompanyJobRepositoryImpl(api)
 }
