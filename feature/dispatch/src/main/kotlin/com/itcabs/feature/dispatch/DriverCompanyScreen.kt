@@ -69,7 +69,8 @@ fun DriverCompanyScreen(viewModel: DriverCompanyViewModel = hiltViewModel()) {
                 item { Text("My trips", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
                 items(state.trips, key = { "t-${it.id}" }) { job ->
                     MyCompanyTripCard(job, onMap = { mapJob = job }, onConfirm = { otpStop = it },
-                        onNavigate = { stop -> navigateTo(context, stop) })
+                        onNavigate = { stop -> navigateTo(context, stop) },
+                        onRelease = { viewModel.release(job.id) }, onComplete = { viewModel.complete(job.id) })
                 }
             }
             item {
@@ -122,7 +123,7 @@ private fun FeedCompanyCard(job: CompanyJob, claiming: Boolean, onClaim: () -> U
 }
 
 @Composable
-private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (JobStop) -> Unit, onNavigate: (JobStop) -> Unit) {
+private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (JobStop) -> Unit, onNavigate: (JobStop) -> Unit, onRelease: () -> Unit, onComplete: () -> Unit) {
     CardBox {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(job.companyName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -130,7 +131,11 @@ private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (Jo
         }
         Text("${job.tripType.name.lowercase().replaceFirstChar { it.uppercase() }} · ${formatRupees(job.farePaise)}",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (job.status == LegStatus.COMPLETED) Text(if (job.paid) "Paid ✓" else "Payment pending",
+            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+            color = if (job.paid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
         val active = job.status == LegStatus.CLAIMED || job.status == LegStatus.CONFIRMED
+        val anyPicked = job.stops.any { it.pickedUp }
         job.stops.forEachIndexed { i, s ->
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text(
@@ -147,12 +152,15 @@ private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (Jo
         }
         Row(Modifier.fillMaxWidth(), Arrangement.End, Alignment.CenterVertically) {
             TextButton(onClick = onMap) { Icon(Icons.Filled.Map, null, Modifier.size(16.dp)); Text(" Map") }
+            // Release only before any pickup has happened (honest early bail-out).
+            if (active && !anyPicked) TextButton(onClick = onRelease) { Text("Release", color = MaterialTheme.colorScheme.error) }
             if (active) {
                 val context = LocalContext.current
-                // Turn-by-turn through every stop in order, starting from the driver's current location.
                 Button(onClick = { navigateRoute(context, job) }, enabled = job.stops.any { it.lat != null }, shape = MaterialTheme.shapes.small) {
-                    Icon(Icons.Filled.Navigation, null, Modifier.size(16.dp)); Text(" Navigate route")
+                    Icon(Icons.Filled.Navigation, null, Modifier.size(16.dp)); Text(" Route")
                 }
+                // Finish the whole job once every stop is picked up.
+                if (job.stops.all { it.pickedUp }) Button(onClick = onComplete, shape = MaterialTheme.shapes.small) { Text(" Complete") }
             }
         }
     }

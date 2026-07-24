@@ -13,6 +13,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -24,14 +27,19 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.itcabs.domain.model.CompanyJob
 
-/** All employee stops of a company job as ordered pins. Pins use each stop's stored GPS. */
+/**
+ * All employee stops of a company job as ordered pins. Pins use each stop's stored GPS.
+ * [track] (coordinator view) also polls + shows the driver's live marker.
+ */
 @Composable
-fun CompanyRouteMapScreen(job: CompanyJob, onBack: () -> Unit) {
+fun CompanyRouteMapScreen(job: CompanyJob, onBack: () -> Unit, track: Boolean = false, viewModel: CompanyMapViewModel = androidx.hilt.navigation.compose.hiltViewModel()) {
     val points = job.stops.filter { it.lat != null && it.lng != null }
     val center = points.firstOrNull()?.let { LatLng(it.lat!!, it.lng!!) } ?: LatLng(17.4401, 78.3489)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(center, 11f)
     }
+    if (track) LaunchedEffect(job.id) { viewModel.start(job.id) }
+    val driver by viewModel.driver.collectAsState()
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -50,6 +58,7 @@ fun CompanyRouteMapScreen(job: CompanyJob, onBack: () -> Unit) {
                         snippet = s.address,
                     )
                 }
+                driver?.let { Marker(state = MarkerState(LatLng(it.lat, it.lng)), title = "Driver") }
             }
         }
     }

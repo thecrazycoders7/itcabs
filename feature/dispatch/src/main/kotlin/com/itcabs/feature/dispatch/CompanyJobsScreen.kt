@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,20 +45,30 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
     var showCreate by remember { mutableStateOf(false) }
     var assignJob by remember { mutableStateOf<CompanyJob?>(null) }
     var driverProfileId by remember { mutableStateOf<Long?>(null) }
+    var mapJob by remember { mutableStateOf<CompanyJob?>(null) }
     val state by viewModel.state.collectAsState()
 
     if (showCreate) {
         CreateCompanyJobScreen(onDone = { showCreate = false })
         return
     }
+    mapJob?.let { CompanyRouteMapScreen(job = it, onBack = { mapJob = null }, track = true); return }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val context = androidx.compose.ui.platform.LocalContext.current
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Company Jobs", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            IconButton(onClick = { shareCompanyCsv(context, state.jobs) }) { Icon(Icons.Filled.Share, "Export CSV") }
             TextButton(onClick = viewModel::refresh) { Text("Refresh") }
             Button(onClick = { showCreate = true }, shape = MaterialTheme.shapes.small) { Icon(Icons.Filled.Add, null); Text("New") }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
+        val outstanding = state.jobs.filter { it.status == LegStatus.COMPLETED && !it.paid }.sumOf { it.farePaise }
+        if (outstanding > 0) Text(
+            "${formatRupees(outstanding)} outstanding to drivers",
+            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
 
         when {
             state.loading && state.jobs.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -72,7 +83,10 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
                         onConfirm = { viewModel.setStatus(job.id, LegStatus.CONFIRMED) },
                         onComplete = { viewModel.setStatus(job.id, LegStatus.COMPLETED) },
                         onCancel = { viewModel.setStatus(job.id, LegStatus.CANCELLED) },
+                        onNoShow = { viewModel.markNoShow(job.id) },
+                        onMarkPaid = { viewModel.markPaid(job.id) },
                         onDriverProfile = { job.claimedBy?.let { driverProfileId = it } },
+                        onMap = { mapJob = job },
                     )
                 }
             }
@@ -86,7 +100,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onDriverProfile: () -> Unit) {
+private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onNoShow: () -> Unit, onMarkPaid: () -> Unit, onDriverProfile: () -> Unit, onMap: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(16.dp),
@@ -101,7 +115,10 @@ private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () 
         job.claimedByName?.let {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("Driver: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
-                TextButton(onClick = onDriverProfile) { Text("View profile") }
+                Row {
+                    if (job.status == LegStatus.CLAIMED || job.status == LegStatus.CONFIRMED) TextButton(onClick = onMap) { Text("Map") }
+                    TextButton(onClick = onDriverProfile) { Text("Profile") }
+                }
             }
         }
 
@@ -122,14 +139,38 @@ private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () 
                     TextButton(onClick = onCancel) { Text("Cancel", color = MaterialTheme.colorScheme.error) }
                 }
                 LegStatus.CLAIMED -> {
+                    TextButton(onClick = onNoShow) { Text("No-show", color = MaterialTheme.colorScheme.error) }
                     TextButton(onClick = onCancel) { Text("Cancel", color = MaterialTheme.colorScheme.error) }
                     Button(onClick = onConfirm, shape = MaterialTheme.shapes.small) { Text("Confirm") }
                 }
-                LegStatus.CONFIRMED -> Button(onClick = onComplete, shape = MaterialTheme.shapes.small) { Text("Complete") }
+                LegStatus.CONFIRMED -> {
+                    TextButton(onClick = onNoShow) { Text("No-show", color = MaterialTheme.colorScheme.error) }
+                    Button(onClick = onComplete, shape = MaterialTheme.shapes.small) { Text("Complete") }
+                }
+                LegStatus.COMPLETED -> {
+                    if (job.paid) Text("Paid ✓", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    else TextButton(onClick = onMarkPaid) { Text("Mark Paid") }
+                }
                 else -> {}
             }
         }
     }
+}
+
+/** CSV of company jobs for finance/billing, via the Android share sheet. */
+private fun shareCompanyCsv(context: android.content.Context, jobs: List<CompanyJob>) {
+    val header = "company,trip_type,stops,fare_rupees,status,driver,paid"
+    val rows = jobs.joinToString("\n") { j ->
+        listOf(j.companyName, j.tripType.name, j.stops.size.toString(), (j.farePaise / 100).toString(),
+            j.status.name, j.claimedByName ?: "", if (j.paid) "yes" else "no")
+            .joinToString(",") { "\"${it.replace("\"", "\"\"")}\"" }
+    }
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/csv"
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "ITCABS company jobs export")
+        putExtra(android.content.Intent.EXTRA_TEXT, "$header\n$rows")
+    }
+    context.startActivity(android.content.Intent.createChooser(send, "Export company jobs"))
 }
 
 @Composable

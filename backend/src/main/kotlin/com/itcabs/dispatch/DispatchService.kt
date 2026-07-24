@@ -352,23 +352,42 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                  FROM legs WHERE coordinator_id = :c$since""",
             params,
         ).first()
-        val posted = (agg["posted"] as Number).toInt()
-        val claimed = (agg["claimed"] as Number).toInt()
+        // Same aggregates over multi-stop company jobs, so Insights covers the whole desk.
+        val cagg = db.queryForList(
+            """SELECT count(*) AS posted,
+                      count(*) FILTER (WHERE claimed_by IS NOT NULL)                   AS claimed,
+                      count(*) FILTER (WHERE status='COMPLETED')                        AS completed,
+                      count(*) FILTER (WHERE status='CANCELLED')                        AS cancelled,
+                      coalesce(sum(fare_paise) FILTER (WHERE paid_at IS NOT NULL),0)    AS total_paid,
+                      coalesce(sum(fare_paise) FILTER (WHERE status='COMPLETED' AND paid_at IS NULL),0) AS outstanding
+                 FROM company_jobs WHERE coordinator_id = :c$since""",
+            params,
+        ).first()
+        fun n(m: Map<String, Any?>, k: String) = (m[k] as Number).toInt()
+        fun l(m: Map<String, Any?>, k: String) = (m[k] as Number).toLong()
+        val posted = n(agg, "posted") + n(cagg, "posted")
+        val claimed = n(agg, "claimed") + n(cagg, "claimed")
+        // Top drivers across both trip types.
+        val sinceL = since.replace("created_at", "l.created_at")
+        val sinceJ = since.replace("created_at", "j.created_at")
         val topDrivers = db.query(
-            """SELECT u.name AS name, count(*) AS trips
-                 FROM legs l JOIN users u ON u.id = l.claimed_by
-                WHERE l.coordinator_id = :c AND l.status = 'COMPLETED'${since.replace("created_at", "l.created_at")}
-                GROUP BY u.name ORDER BY trips DESC LIMIT 5""",
+            """SELECT name, sum(trips) AS trips FROM (
+                   SELECT u.name AS name, count(*) AS trips FROM legs l JOIN users u ON u.id = l.claimed_by
+                    WHERE l.coordinator_id = :c AND l.status='COMPLETED'$sinceL GROUP BY u.name
+                   UNION ALL
+                   SELECT u.name AS name, count(*) AS trips FROM company_jobs j JOIN users u ON u.id = j.claimed_by
+                    WHERE j.coordinator_id = :c AND j.status='COMPLETED'$sinceJ GROUP BY u.name
+                 ) t GROUP BY name ORDER BY trips DESC LIMIT 5""",
             params,
         ) { rs, _ -> TopDriverDto(rs.getString("name") ?: "", rs.getInt("trips")) }
         return CoordinatorStatsDto(
             posted = posted,
             claimed = claimed,
-            completed = (agg["completed"] as Number).toInt(),
-            cancelled = (agg["cancelled"] as Number).toInt(),
+            completed = n(agg, "completed") + n(cagg, "completed"),
+            cancelled = n(agg, "cancelled") + n(cagg, "cancelled"),
             fillRatePct = if (posted == 0) 0 else (claimed * 100 / posted),
-            totalPaidPaise = (agg["total_paid"] as Number).toLong(),
-            outstandingPaise = (agg["outstanding"] as Number).toLong(),
+            totalPaidPaise = l(agg, "total_paid") + l(cagg, "total_paid"),
+            outstandingPaise = l(agg, "outstanding") + l(cagg, "outstanding"),
             topDrivers = topDrivers,
         )
     }

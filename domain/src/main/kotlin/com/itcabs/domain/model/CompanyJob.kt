@@ -28,6 +28,7 @@ data class CompanyJob(
     val status: LegStatus,       // reuse OPEN/CLAIMED/CONFIRMED/COMPLETED/CANCELLED
     val claimedBy: Long?,
     val claimedByName: String?,
+    val paid: Boolean = false,
     val stops: List<JobStop>,
     val version: Int,
 )

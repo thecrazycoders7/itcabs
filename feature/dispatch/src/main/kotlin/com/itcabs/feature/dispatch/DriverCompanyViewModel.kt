@@ -55,10 +55,14 @@ class DriverCompanyViewModel @Inject constructor(
         }
     }
 
-    fun confirmPickup(stopId: Long, otp: String) {
+    fun confirmPickup(stopId: Long, otp: String) = act { repo.confirmStopPickup(stopId, otp) }
+    fun release(jobId: Long) = act { repo.releaseTrip(jobId) }
+    fun complete(jobId: Long) = act { repo.driverComplete(jobId) }
+
+    private fun act(block: suspend () -> AppResult<Unit>) {
         _state.update { it.copy(error = null) }
         viewModelScope.launch {
-            when (val r = repo.confirmStopPickup(stopId, otp)) {
+            when (val r = block()) {
                 is AppResult.Ok -> refresh()
                 is AppResult.Err -> _state.update { it.copy(error = r.message) }
             }

@@ -49,6 +49,34 @@ class CompanyJobController(
         return job
     }
 
+    @PostMapping("/{id}/paid")
+    fun markPaid(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+        jobs.markPaid(requireUserId(req), id); events.legChanged(id); return mapOf("ok" to true)
+    }
+
+    @PostMapping("/{id}/no-show")
+    fun noShow(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+        jobs.markNoShow(requireUserId(req), id)
+        events.legChanged(id)
+        push.notifyDriversNewLeg("a reopened company trip")
+        return mapOf("reopened" to true)
+    }
+
+    @PostMapping("/{id}/release")
+    fun release(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+        jobs.releaseTrip(requireUserId(req), id); events.legChanged(id); push.notifyDriversNewLeg("a released company trip"); return mapOf("released" to true)
+    }
+
+    @PostMapping("/{id}/complete")
+    fun complete(req: HttpServletRequest, @PathVariable id: Long) {
+        jobs.driverComplete(requireUserId(req), id); events.legChanged(id)
+    }
+
+    /** Coordinator reads the claimed driver's live location for the company route map. */
+    @GetMapping("/{id}/driver-location")
+    fun driverLocation(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any?> =
+        jobs.driverLocation(requireUserId(req), id) ?: emptyMap()
+
     // driver
     @GetMapping("/feed")
     fun feed() = jobs.feed()

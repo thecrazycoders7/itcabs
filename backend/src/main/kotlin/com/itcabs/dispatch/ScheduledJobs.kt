@@ -52,5 +52,24 @@ class ScheduledJobs(
                 MapSqlParameterSource(),
             )
         }
+
+        // Same guard for multi-stop company jobs.
+        val staleJobs = db.queryForList(
+            """SELECT coordinator_id, count(*) AS n FROM company_jobs
+                WHERE status='OPEN' AND escalated_at IS NULL AND created_at < now() - interval '20 minutes'
+                GROUP BY coordinator_id""",
+            MapSqlParameterSource(),
+        )
+        staleJobs.forEach { row ->
+            val n = (row["n"] as Number).toInt()
+            push.notifyUser((row["coordinator_id"] as Number).toLong(), "Company trips unclaimed",
+                "$n company trip${if (n > 1) "s" else ""} you posted ${if (n > 1) "are" else "is"} still open.")
+        }
+        if (staleJobs.isNotEmpty()) {
+            db.update(
+                "UPDATE company_jobs SET escalated_at=now() WHERE status='OPEN' AND escalated_at IS NULL AND created_at < now() - interval '20 minutes'",
+                MapSqlParameterSource(),
+            )
+        }
     }
 }

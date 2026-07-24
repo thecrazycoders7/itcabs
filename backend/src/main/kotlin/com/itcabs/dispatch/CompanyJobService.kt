@@ -76,6 +76,68 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
         return claimedBy?.toLong()
     }
 
+    /** Coordinator settles a completed job (flat fare, cash paid). Idempotent. */
+    @Transactional
+    fun markPaid(coordinatorId: Long, jobId: Long) {
+        val n = db.update(
+            "UPDATE company_jobs SET paid_at=now() WHERE id=:id AND coordinator_id=:c AND status='COMPLETED' AND paid_at IS NULL",
+            MapSqlParameterSource().addValue("id", jobId).addValue("c", coordinatorId),
+        )
+        if (n == 0) throw badRequest("job not found, not yours, not completed, or already paid")
+    }
+
+    /** Coordinator reports a no-show: dings the driver, reopens the job, clears stop OTPs/pickups. */
+    @Transactional
+    fun markNoShow(coordinatorId: Long, jobId: Long) {
+        val row = db.queryForList(
+            "SELECT claimed_by, status FROM company_jobs WHERE id=:id AND coordinator_id=:c",
+            MapSqlParameterSource().addValue("id", jobId).addValue("c", coordinatorId),
+        ).firstOrNull() ?: throw forbidden("not your job, or job not found")
+        val driverId = (row["claimed_by"] as? Number)?.toLong() ?: throw badRequest("job has no claimed driver")
+        if (row["status"] !in setOf("CLAIMED", "CONFIRMED")) throw badRequest("can only report a no-show on a claimed/confirmed job")
+        db.update("UPDATE driver_profiles SET no_shows = no_shows + 1 WHERE user_id=:d", MapSqlParameterSource("d", driverId))
+        reopen(jobId)
+    }
+
+    /** Driver hands a claimed job back before it starts — no no-show recorded. */
+    @Transactional
+    fun releaseTrip(driverId: Long, jobId: Long) {
+        val n = db.update(
+            "UPDATE company_jobs SET status='OPEN', claimed_by=NULL, claimed_at=NULL, version=version+1 WHERE id=:id AND claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')",
+            MapSqlParameterSource().addValue("id", jobId).addValue("d", driverId),
+        )
+        if (n == 0) throw forbidden("not your active job")
+        db.update("UPDATE job_stops SET pickup_otp=NULL, picked_up_at=NULL WHERE job_id=:id", MapSqlParameterSource("id", jobId))
+    }
+
+    /** Driver marks the whole job done after the last drop. Idempotent trips increment. */
+    @Transactional
+    fun driverComplete(driverId: Long, jobId: Long) {
+        val n = db.update(
+            "UPDATE company_jobs SET status='COMPLETED', version=version+1 WHERE id=:id AND claimed_by=:d AND status <> 'COMPLETED'",
+            MapSqlParameterSource().addValue("id", jobId).addValue("d", driverId),
+        )
+        if (n == 0) throw forbidden("not your job, or already completed")
+        db.update("UPDATE driver_profiles SET trips_completed = trips_completed + 1 WHERE user_id=:d", MapSqlParameterSource("d", driverId))
+    }
+
+    /** The claimed driver's latest location for a coordinator's company job (for the live map). */
+    fun driverLocation(coordinatorId: Long, jobId: Long): Map<String, Any?>? {
+        val row = db.queryForList(
+            """SELECT p.last_lat, p.last_lng, p.last_loc_at FROM company_jobs j
+                 JOIN driver_profiles p ON p.user_id = j.claimed_by
+                WHERE j.id=:id AND j.coordinator_id=:c""",
+            MapSqlParameterSource().addValue("id", jobId).addValue("c", coordinatorId),
+        ).firstOrNull() ?: return null
+        val lat = row["last_lat"] ?: return null
+        return mapOf("lat" to lat, "lng" to row["last_lng"], "updatedAt" to row["last_loc_at"]?.toString())
+    }
+
+    private fun reopen(jobId: Long) {
+        db.update("UPDATE company_jobs SET status='OPEN', claimed_by=NULL, claimed_at=NULL, version=version+1 WHERE id=:id", MapSqlParameterSource("id", jobId))
+        db.update("UPDATE job_stops SET pickup_otp=NULL, picked_up_at=NULL WHERE job_id=:id", MapSqlParameterSource("id", jobId))
+    }
+
     @Transactional
     fun assign(coordinatorId: Long, jobId: Long, driverId: Long): CompanyJobDto {
         val eligible = db.queryForObject(
@@ -166,7 +228,7 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
     private fun jobsWhere(where: String, params: MapSqlParameterSource, forCoordinator: Boolean): List<CompanyJobDto> {
         val jobs = db.query(
             """SELECT j.id, j.coordinator_id, j.company_name, j.trip_type, j.office, j.vehicle_type,
-                      j.fare_paise, j.status, j.claimed_by, u.name AS claimed_by_name, j.version
+                      j.fare_paise, j.status, j.claimed_by, u.name AS claimed_by_name, j.paid_at, j.version
                  FROM company_jobs j LEFT JOIN users u ON u.id = j.claimed_by
                 WHERE $where""",
             params,
@@ -182,6 +244,7 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
                 status = rs.getString("status"),
                 claimedBy = rs.getObject("claimed_by")?.let { (it as Number).toLong() },
                 claimedByName = rs.getString("claimed_by_name"),
+                paid = rs.getObject("paid_at") != null,
                 stops = emptyList(),
                 version = rs.getInt("version"),
             )

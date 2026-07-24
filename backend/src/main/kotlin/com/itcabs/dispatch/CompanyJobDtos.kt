@@ -56,6 +56,7 @@ data class CompanyJobDto(
     val status: String,
     val claimedBy: Long?,
     val claimedByName: String?,
+    val paid: Boolean = false,
     val stops: List<StopDto>,
     val version: Int,
 )

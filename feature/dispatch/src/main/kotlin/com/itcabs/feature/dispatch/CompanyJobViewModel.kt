@@ -69,6 +69,8 @@ class CompanyJobViewModel @Inject constructor(
     fun setStatus(jobId: Long, status: LegStatus) = act { repo.setStatus(jobId, status) }
     fun replaceStops(jobId: Long, stops: List<NewStop>) = act { repo.replaceStops(jobId, stops) }
     fun assign(jobId: Long, driverId: Long) = act { repo.assign(jobId, driverId).map { } }
+    fun markPaid(jobId: Long) = act { repo.markPaid(jobId) }
+    fun markNoShow(jobId: Long) = act { repo.markNoShow(jobId) }
 
     fun loadDrivers() {
         viewModelScope.launch {

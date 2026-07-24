@@ -46,6 +46,13 @@ class CompanyJobRepositoryImpl(private val api: CompanyJobApi) : CompanyJobRepos
 
     override suspend fun confirmStopPickup(stopId: Long, otp: String?): AppResult<Unit> =
         api.confirmStopPickup(stopId, StopPickupDto(otp)).asResult { }
+
+    override suspend fun markPaid(jobId: Long): AppResult<Unit> = api.markPaid(jobId).asResult { }
+    override suspend fun markNoShow(jobId: Long): AppResult<Unit> = api.noShow(jobId).asResult { }
+    override suspend fun releaseTrip(jobId: Long): AppResult<Unit> = api.release(jobId).asResult { }
+    override suspend fun driverComplete(jobId: Long): AppResult<Unit> = api.complete(jobId).asResult { }
+    override suspend fun driverLocation(jobId: Long): AppResult<com.itcabs.domain.model.DriverLocation> =
+        api.driverLocation(jobId).asResult { com.itcabs.domain.model.DriverLocation(it.lat, it.lng, it.updatedAt) }
 }
 
 private fun NewStop.toDto() = StopInputDto(employeeName, address, lat, lng, placeId, phone)
@@ -63,6 +70,6 @@ private fun CompanyJobDto.toDomain() = CompanyJob(
     tripType = runCatching { TripType.valueOf(tripType) }.getOrDefault(TripType.PICKUP),
     office = office, vehicleType = vehicleType, farePaise = farePaise,
     status = runCatching { LegStatus.valueOf(status) }.getOrDefault(LegStatus.OPEN),
-    claimedBy = claimedBy, claimedByName = claimedByName,
+    claimedBy = claimedBy, claimedByName = claimedByName, paid = paid,
     stops = stops.map { it.toDomain() }, version = version,
 )

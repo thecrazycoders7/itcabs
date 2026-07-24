@@ -42,4 +42,19 @@ interface CompanyJobApi {
 
     @POST("api/v1/company-jobs/stops/{stopId}/pickup")
     suspend fun confirmStopPickup(@Path("stopId") stopId: Long, @Body body: StopPickupDto): Response<Map<String, Boolean>>
+
+    @POST("api/v1/company-jobs/{id}/paid")
+    suspend fun markPaid(@Path("id") id: Long): Response<Map<String, Boolean>>
+
+    @POST("api/v1/company-jobs/{id}/no-show")
+    suspend fun noShow(@Path("id") id: Long): Response<Map<String, Boolean>>
+
+    @POST("api/v1/company-jobs/{id}/release")
+    suspend fun release(@Path("id") id: Long): Response<Map<String, Boolean>>
+
+    @POST("api/v1/company-jobs/{id}/complete")
+    suspend fun complete(@Path("id") id: Long): Response<Unit>
+
+    @GET("api/v1/company-jobs/{id}/driver-location")
+    suspend fun driverLocation(@Path("id") id: Long): Response<com.itcabs.core.network.dto.DriverLocationDto>
 }

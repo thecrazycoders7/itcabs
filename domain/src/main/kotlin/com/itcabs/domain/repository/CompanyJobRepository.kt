@@ -15,9 +15,16 @@ interface CompanyJobRepository {
     suspend fun setStatus(jobId: Long, status: LegStatus): AppResult<Unit>
     suspend fun assign(jobId: Long, driverId: Long): AppResult<CompanyJob>
 
+    suspend fun markPaid(jobId: Long): AppResult<Unit>
+    suspend fun markNoShow(jobId: Long): AppResult<Unit>
+    /** The claimed driver's latest location for the company route map. */
+    suspend fun driverLocation(jobId: Long): AppResult<com.itcabs.domain.model.DriverLocation>
+
     // driver
     suspend fun feed(): AppResult<List<CompanyJob>>
     suspend fun myTrips(): AppResult<List<CompanyJob>>
     suspend fun claim(jobId: Long): AppResult<CompanyJob>
     suspend fun confirmStopPickup(stopId: Long, otp: String?): AppResult<Unit>
+    suspend fun releaseTrip(jobId: Long): AppResult<Unit>
+    suspend fun driverComplete(jobId: Long): AppResult<Unit>
 }
