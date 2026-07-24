@@ -37,6 +37,20 @@ import com.itcabs.domain.model.PendingDriver
 @Composable
 fun AdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Open a freshly signed document URL in the device viewer/browser, then consume it.
+    androidx.compose.runtime.LaunchedEffect(state.openUrl) {
+        state.openUrl?.let { url ->
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            viewModel.consumeOpenUrl()
+        }
+    }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
@@ -61,7 +75,15 @@ fun AdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
             item { Text("Pending approvals", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
             if (state.pending.isEmpty()) item { Text("None waiting.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(state.pending, key = { "p-${it.id}" }) { d ->
-                PendingDriverCard(d, onVerify = { viewModel.verify(d.id) }, onReject = { reason -> viewModel.reject(d.id, reason) })
+                PendingDriverCard(
+                    driver = d,
+                    docs = state.docs[d.id],
+                    onLoadDocs = { viewModel.loadDocs(d.id) },
+                    onView = { path -> viewModel.openDoc(path) },
+                    onReupload = { docType, reason -> viewModel.requestReupload(d.id, docType, reason) },
+                    onVerify = { viewModel.verify(d.id) },
+                    onReject = { reason -> viewModel.reject(d.id, reason) },
+                )
             }
             // Roster: block/unblock any driver (trust & safety).
             item { Text("All drivers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp)) }
@@ -92,9 +114,18 @@ private fun DriverRosterRow(driver: com.itcabs.domain.model.AdminDriver, onBlock
 }
 
 @Composable
-private fun PendingDriverCard(driver: PendingDriver, onVerify: () -> Unit, onReject: (String?) -> Unit) {
+private fun PendingDriverCard(
+    driver: PendingDriver,
+    docs: List<com.itcabs.domain.model.KycDoc>?,
+    onLoadDocs: () -> Unit,
+    onView: (String) -> Unit,
+    onReupload: (String, String?) -> Unit,
+    onVerify: () -> Unit,
+    onReject: (String?) -> Unit,
+) {
     var confirmReject by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
+    var showDocs by remember { mutableStateOf(false) }
     if (confirmReject) {
         AlertDialog(
             onDismissRequest = { confirmReject = false },
@@ -130,6 +161,21 @@ private fun PendingDriverCard(driver: PendingDriver, onVerify: () -> Unit, onRej
         if (vehicle.isNotBlank()) Text(vehicle, style = MaterialTheme.typography.bodyMedium)
         driver.aadhaarMasked?.let { Text("Aadhaar: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         driver.rcNumberMasked?.let { Text("RC: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+
+        TextButton(
+            onClick = { showDocs = !showDocs; if (showDocs && docs == null) onLoadDocs() },
+            contentPadding = PaddingValues(0.dp),
+        ) { Text(if (showDocs) "Hide documents" else "Review documents") }
+        if (showDocs) {
+            when {
+                docs == null -> Text("Loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                docs.isEmpty() -> Text("No documents uploaded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    docs.forEach { doc -> DocReviewRow(doc, onView = { onView(doc.storagePath) }, onReupload = { r -> onReupload(doc.docType, r) }) }
+                }
+            }
+        }
+
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.End,
@@ -137,6 +183,41 @@ private fun PendingDriverCard(driver: PendingDriver, onVerify: () -> Unit, onRej
         ) {
             TextButton(onClick = { confirmReject = true }) { Text("Reject", color = MaterialTheme.colorScheme.error) }
             Button(onClick = onVerify, shape = MaterialTheme.shapes.small) { Text("Verify") }
+        }
+    }
+}
+
+/** One document row in the admin review: label + state + View + "Ask re-upload" (with a reason). */
+@Composable
+private fun DocReviewRow(doc: com.itcabs.domain.model.KycDoc, onView: () -> Unit, onReupload: (String?) -> Unit) {
+    var askReupload by remember { mutableStateOf(false) }
+    var reason by remember { mutableStateOf("") }
+    val label = KYC_DOC_DEFS.firstOrNull { it.type == doc.docType }?.label ?: doc.docType
+    val requested = doc.status == "REUPLOAD_REQUESTED"
+
+    if (askReupload) {
+        AlertDialog(
+            onDismissRequest = { askReupload = false },
+            title = { Text("Re-upload: $label") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("The driver is notified and can re-upload this one document while the rest stays in review.")
+                    OutlinedTextField(reason, { reason = it }, placeholder = { Text("e.g. blurry, corner cut off") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = { TextButton(onClick = { askReupload = false; onReupload(reason.trim().ifBlank { null }) }) { Text("Request") } },
+            dismissButton = { TextButton(onClick = { askReupload = false }) { Text("Cancel") } },
+        )
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            if (requested) Text("Re-upload requested" + (doc.rejectReason?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+        }
+        TextButton(onClick = onView, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("View") }
+        TextButton(onClick = { askReupload = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Text(if (requested) "Re-ask" else "Re-upload")
         }
     }
 }

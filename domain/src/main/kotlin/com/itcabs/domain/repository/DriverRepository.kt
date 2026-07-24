@@ -36,6 +36,15 @@ interface DriverRepository {
     suspend fun pendingDrivers(): AppResult<List<PendingDriver>>
     suspend fun verifyDriver(driverId: Long): AppResult<Unit>
     suspend fun rejectDriver(driverId: Long, reason: String?): AppResult<Unit>
+
+    /** A driver's uploaded documents (for admin review). */
+    suspend fun adminDriverDocs(driverId: Long): AppResult<List<com.itcabs.domain.model.KycDoc>>
+
+    /** A short-lived signed URL to view one private document. */
+    suspend fun signedDocUrl(storagePath: String): AppResult<String>
+
+    /** Ask a driver to re-upload one document, with a reason. */
+    suspend fun requestReupload(driverId: Long, docType: String, reason: String?): AppResult<Unit>
     suspend fun allDrivers(): AppResult<List<com.itcabs.domain.model.AdminDriver>>
     suspend fun blockUser(userId: Long): AppResult<Unit>
     suspend fun unblockUser(userId: Long): AppResult<Unit>

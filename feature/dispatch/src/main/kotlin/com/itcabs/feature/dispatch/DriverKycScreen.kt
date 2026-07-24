@@ -61,9 +61,11 @@ import java.io.File
 fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
-    // Awaiting review → show status, not the form (can't resubmit while PENDING).
+    // Awaiting review → show status, not the form (can't resubmit while PENDING)…
     if (state.kycStatus == com.itcabs.domain.model.KycStatus.PENDING) {
-        UnderReviewView(onDone)
+        val needsReupload = state.docs.values.any { it.status == DocStatus.REUPLOAD }
+        // …unless the admin asked for a single document to be re-uploaded — let the driver fix just that.
+        if (needsReupload) ReuploadView(state, viewModel, onDone) else UnderReviewView(onDone)
         return
     }
 
@@ -147,6 +149,27 @@ private fun UnderReviewView(onDone: () -> Unit) {
     }
 }
 
+/** Shown while PENDING when the admin requested re-uploads: fix just the flagged documents. */
+@Composable
+private fun ReuploadView(state: DriverKycUiState, viewModel: DriverKycViewModel, onDone: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            TextButton(onClick = onDone) { Text("Back") }
+        }
+        Text("Action needed", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "A reviewer asked you to re-upload the document(s) below. The rest of your review continues — " +
+                "no need to resubmit.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        DocumentsSection(state, viewModel, onlyReupload = true)
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
 /** One ✓/○ readiness row. */
 @Composable
 private fun CheckLine(done: Boolean, label: String) {
@@ -162,7 +185,7 @@ private fun CheckLine(done: Boolean, label: String) {
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-private fun DocumentsSection(state: DriverKycUiState, viewModel: DriverKycViewModel) {
+private fun DocumentsSection(state: DriverKycUiState, viewModel: DriverKycViewModel, onlyReupload: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var targetType by remember { mutableStateOf<String?>(null) }
@@ -188,8 +211,9 @@ private fun DocumentsSection(state: DriverKycUiState, viewModel: DriverKycViewMo
         if (ok && t != null && uri != null) handlePicked(t, uri)
     }
 
+    val defs = if (onlyReupload) KYC_DOC_DEFS.filter { state.docs[it.type]?.status == DocStatus.REUPLOAD } else KYC_DOC_DEFS
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        KYC_DOC_DEFS.forEach { def ->
+        defs.forEach { def ->
             DocRow(
                 def = def,
                 ui = state.docs[def.type] ?: DocUi(),

@@ -52,4 +52,12 @@ interface DriverApi {
 
     @POST("api/v1/admin/drivers/{id}/reject")
     suspend fun rejectDriver(@Path("id") id: Long, @Body body: RejectInputDto): Response<Map<String, String>>
+
+    @GET("api/v1/admin/drivers/{id}/documents")
+    suspend fun driverDocuments(@Path("id") id: Long): Response<List<com.itcabs.core.network.dto.KycDocDto>>
+
+    @POST("api/v1/admin/drivers/{id}/documents/{docType}/reupload")
+    suspend fun requestReupload(
+        @Path("id") id: Long, @Path("docType") docType: String, @Body body: RejectInputDto,
+    ): Response<Map<String, String>>
 }

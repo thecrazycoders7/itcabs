@@ -97,4 +97,14 @@ class DriverRepositoryImpl(
 
     override suspend fun blockUser(userId: Long): AppResult<Unit> = api.blockUser(userId).asResult { }
     override suspend fun unblockUser(userId: Long): AppResult<Unit> = api.unblockUser(userId).asResult { }
+
+    override suspend fun adminDriverDocs(driverId: Long): AppResult<List<com.itcabs.domain.model.KycDoc>> =
+        api.driverDocuments(driverId).asResult { list ->
+            list.map { com.itcabs.domain.model.KycDoc(it.docType, it.storagePath, it.status, it.rejectReason) }
+        }
+
+    override suspend fun signedDocUrl(storagePath: String): AppResult<String> = storage.signedUrl(storagePath)
+
+    override suspend fun requestReupload(driverId: Long, docType: String, reason: String?): AppResult<Unit> =
+        api.requestReupload(driverId, docType, RejectInputDto(reason)).asResult { }
 }

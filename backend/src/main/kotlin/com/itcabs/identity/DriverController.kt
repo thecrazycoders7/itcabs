@@ -171,6 +171,37 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         return mapOf("kycStatus" to "REJECTED")
     }
 
+    /** Admin: a driver's uploaded documents (paths + review state) so the console can sign + view them. */
+    @GetMapping("/admin/drivers/{id}/documents")
+    fun driverDocuments(req: HttpServletRequest, @PathVariable id: Long): List<Map<String, Any?>> {
+        requireAdmin(req, db)
+        return db.queryForList(
+            "SELECT doc_type, storage_path, status, reject_reason FROM kyc_documents WHERE user_id = :id ORDER BY doc_type",
+            MapSqlParameterSource("id", id),
+        )
+    }
+
+    /** Admin: ask the driver to re-upload ONE document (keeps the rest of the KYC in review). */
+    @PostMapping("/admin/drivers/{id}/documents/{docType}/reupload")
+    fun requestReupload(
+        req: HttpServletRequest, @PathVariable id: Long, @PathVariable docType: String,
+        @RequestBody(required = false) body: RejectInput?,
+    ): Map<String, Any> {
+        requireAdmin(req, db)
+        val type = docType.uppercase()
+        val reason = body?.reason?.takeIf { it.isNotBlank() }
+        val n = db.update(
+            "UPDATE kyc_documents SET status='REUPLOAD_REQUESTED', reject_reason=:r WHERE user_id=:id AND doc_type=:t",
+            MapSqlParameterSource().addValue("r", reason).addValue("id", id).addValue("t", type),
+        )
+        if (n == 0) throw com.itcabs.shared.badRequest("no such document for this driver")
+        push.notifyUser(
+            id, "Re-upload needed",
+            reason?.let { "$type: $it" } ?: "Please re-upload your $type document.",
+        )
+        return mapOf("status" to "REUPLOAD_REQUESTED")
+    }
+
     /** Admin: block a user (trust & safety, M4). Blocked users can't sign in or re-register. */
     @PostMapping("/admin/users/{id}/block")
     fun block(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> = setBlocked(req, id, true)

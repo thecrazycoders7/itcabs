@@ -46,6 +46,30 @@ class SupabaseStorage(
         }
     }
 
+    /** A short-lived signed URL for a private object (admin review). RLS must permit the caller to read it. */
+    suspend fun signedUrl(path: String, expiresInSec: Int = 300): AppResult<String> {
+        val access = tokens.accessToken() ?: return AppResult.Err(0, "Sign in again")
+        val body = """{"expiresIn":$expiresInSec}""".toRequestBody("application/json".toMediaType())
+        val req = Request.Builder()
+            .url("${supabaseUrl.trimEnd('/')}/storage/v1/object/sign/$BUCKET/$path")
+            .addHeader("Authorization", "Bearer $access")
+            .addHeader("apikey", anonKey)
+            .post(body)
+            .build()
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                client.newCall(req).execute().use { resp ->
+                    val text = resp.body?.string()
+                    if (!resp.isSuccessful) return@use AppResult.Err(resp.code, "Couldn't open document (${resp.code})")
+                    // { "signedURL": "/object/sign/kyc-docs/...?token=..." } — make it absolute.
+                    val rel = Regex("\"signedURL\"\\s*:\\s*\"([^\"]+)\"").find(text ?: "")?.groupValues?.get(1)
+                        ?: return@use AppResult.Err(0, "Malformed sign response")
+                    AppResult.Ok("${supabaseUrl.trimEnd('/')}/storage/v1${rel.replace("\\/", "/")}")
+                }
+            }.getOrElse { AppResult.Err(0, it.message ?: "Couldn't open document") }
+        }
+    }
+
     /** JWT `sub` = Supabase user id, which the folder must be named after (RLS). */
     private fun subOf(jwt: String): String? = runCatching {
         val payload = jwt.split(".").getOrNull(1) ?: return null

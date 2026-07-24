@@ -17,6 +17,8 @@ import javax.inject.Inject
 data class AdminUiState(
     val pending: List<PendingDriver> = emptyList(),
     val drivers: List<AdminDriver> = emptyList(),
+    val docs: Map<Long, List<com.itcabs.domain.model.KycDoc>> = emptyMap(),
+    val openUrl: String? = null,   // one-shot: a freshly signed URL for the screen to open, then consume
     val loading: Boolean = false,
     val error: String? = null,
 )
@@ -47,6 +49,38 @@ class AdminViewModel @Inject constructor(
     fun reject(driverId: Long, reason: String?) = act(driverId) { drivers.rejectDriver(it, reason) }
     fun block(userId: Long) = act(userId) { drivers.blockUser(it) }
     fun unblock(userId: Long) = act(userId) { drivers.unblockUser(it) }
+
+    /** Load a driver's documents (called when the reviewer expands their card). */
+    fun loadDocs(driverId: Long) {
+        viewModelScope.launch {
+            when (val r = drivers.adminDriverDocs(driverId)) {
+                is AppResult.Ok -> _state.update { it.copy(docs = it.docs + (driverId to r.value)) }
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
+            }
+        }
+    }
+
+    /** Sign a private document path and hand the URL to the screen to open in a viewer. */
+    fun openDoc(storagePath: String) {
+        viewModelScope.launch {
+            when (val r = drivers.signedDocUrl(storagePath)) {
+                is AppResult.Ok -> _state.update { it.copy(openUrl = r.value) }
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
+            }
+        }
+    }
+
+    fun consumeOpenUrl() = _state.update { it.copy(openUrl = null) }
+
+    fun requestReupload(driverId: Long, docType: String, reason: String?) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val r = drivers.requestReupload(driverId, docType, reason)) {
+                is AppResult.Ok -> loadDocs(driverId)   // refresh that driver's doc states
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
+            }
+        }
+    }
 
     private fun act(driverId: Long, action: suspend (Long) -> AppResult<Unit>) {
         _state.update { it.copy(error = null) }
