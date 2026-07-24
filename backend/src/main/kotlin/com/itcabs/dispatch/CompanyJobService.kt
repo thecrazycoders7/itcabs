@@ -22,22 +22,53 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
     fun create(coordinatorId: Long, input: CompanyJobInput): CompanyJobDto {
         val tripType = input.tripType.uppercase()
         if (tripType !in setOf("PICKUP", "DROP")) throw badRequest("tripType must be PICKUP or DROP")
-        if (input.stops.isEmpty()) throw badRequest("a job needs at least one stop")
+        validateStopsForVehicle(input.vehicleType, input.stops.size)
         if (input.farePaise < 0) throw badRequest("fare must be >= 0")
         val publishAt = input.publishAt?.let {
             runCatching { java.time.OffsetDateTime.parse(it) }.getOrElse { throw badRequest("publishAt must be ISO-8601") }
         }
         val jobId = db.queryForObject(
-            """INSERT INTO company_jobs(coordinator_id, company_name, trip_type, office, vehicle_type, fare_paise, publish_at)
-               VALUES (:c,:cn,:tt,:o,:vt,:fp, coalesce(:pa, now())) RETURNING id""",
-            MapSqlParameterSource().addValue("c", coordinatorId).addValue("cn", input.companyName)
-                .addValue("tt", tripType).addValue("o", input.office).addValue("vt", input.vehicleType)
-                .addValue("fp", input.farePaise)
-                .addValue("pa", publishAt?.let { java.sql.Timestamp.from(it.toInstant()) }),
+            """INSERT INTO company_jobs(coordinator_id, company_name, trip_type, office, office_address,
+                     office_lat, office_lng, office_place_id, pickup_time, drop_time, vehicle_type, vehicle_ac, fare_paise, publish_at)
+               VALUES (:c,:cn,:tt,:o,:oa,:olat,:olng,:opid,:pt,:dt,:vt,:ac,:fp, coalesce(:pa, now())) RETURNING id""",
+            jobParams(coordinatorId, tripType, input).addValue("pa", publishAt?.let { java.sql.Timestamp.from(it.toInstant()) }),
             Long::class.java,
         )!!
         insertStops(jobId, input.stops)
         return oneJob(coordinatorId, jobId, forCoordinator = true)
+    }
+
+    /** Full edit while OPEN (before any driver accepts): job fields + stops. Locked once claimed. */
+    @Transactional
+    fun edit(coordinatorId: Long, jobId: Long, input: CompanyJobInput): CompanyJobDto {
+        val tripType = input.tripType.uppercase()
+        if (tripType !in setOf("PICKUP", "DROP")) throw badRequest("tripType must be PICKUP or DROP")
+        validateStopsForVehicle(input.vehicleType, input.stops.size)
+        val n = db.update(
+            """UPDATE company_jobs SET company_name=:cn, trip_type=:tt, office=:o, office_address=:oa,
+                     office_lat=:olat, office_lng=:olng, office_place_id=:opid, pickup_time=:pt, drop_time=:dt,
+                     vehicle_type=:vt, vehicle_ac=:ac, fare_paise=:fp, version=version+1
+               WHERE id=:id AND coordinator_id=:c AND status='OPEN'""",
+            jobParams(coordinatorId, tripType, input).addValue("id", jobId),
+        )
+        if (n == 0) throw badRequest("job not found, not yours, or already accepted by a driver")
+        db.update("DELETE FROM job_stops WHERE job_id=:id", MapSqlParameterSource("id", jobId))
+        insertStops(jobId, input.stops)
+        return oneJob(coordinatorId, jobId, forCoordinator = true)
+    }
+
+    private fun jobParams(coordinatorId: Long, tripType: String, input: CompanyJobInput) =
+        MapSqlParameterSource().addValue("c", coordinatorId).addValue("cn", input.companyName)
+            .addValue("tt", tripType).addValue("o", input.office).addValue("oa", input.officeAddress)
+            .addValue("olat", input.officeLat).addValue("olng", input.officeLng).addValue("opid", input.officePlaceId)
+            .addValue("pt", input.pickupTime).addValue("dt", input.dropTime)
+            .addValue("vt", input.vehicleType.uppercase()).addValue("ac", input.vehicleAc).addValue("fp", input.farePaise)
+
+    /** Capacity: Sedan ≤ 4 stops, SUV ≤ 6. */
+    private fun validateStopsForVehicle(vehicleType: String, count: Int) {
+        if (count == 0) throw badRequest("a job needs at least one stop")
+        val max = when (vehicleType.uppercase()) { "SEDAN" -> 4; "SUV" -> 6; else -> 6 }
+        if (count > max) throw badRequest("${vehicleType.ifBlank { "This vehicle" }} allows at most $max stops")
     }
 
     fun myJobs(coordinatorId: Long): List<CompanyJobDto> =
@@ -158,8 +189,16 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
 
     // --- driver ---
 
-    fun feed(): List<CompanyJobDto> =
-        jobsWhere("j.status='OPEN' AND j.publish_at <= now() ORDER BY j.created_at DESC", MapSqlParameterSource(), forCoordinator = false)
+    /** Only OPEN jobs matching the driver's own vehicle type (Sedan driver → Sedan jobs). */
+    fun feed(driverId: Long): List<CompanyJobDto> {
+        val vt = db.queryForList("SELECT vehicle_type FROM driver_profiles WHERE user_id=:d", MapSqlParameterSource("d", driverId))
+            .firstOrNull()?.get("vehicle_type") as? String
+        val where = StringBuilder("j.status='OPEN' AND j.publish_at <= now()")
+        val params = MapSqlParameterSource()
+        if (!vt.isNullOrBlank()) { where.append(" AND upper(j.vehicle_type) = upper(:vt)"); params.addValue("vt", vt) }
+        where.append(" ORDER BY j.created_at DESC")
+        return jobsWhere(where.toString(), params, forCoordinator = false)
+    }
 
     fun myTrips(driverId: Long): List<CompanyJobDto> =
         jobsWhere("j.claimed_by = :d ORDER BY j.claimed_at DESC", MapSqlParameterSource("d", driverId), forCoordinator = false)
@@ -228,6 +267,7 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
     private fun jobsWhere(where: String, params: MapSqlParameterSource, forCoordinator: Boolean): List<CompanyJobDto> {
         val jobs = db.query(
             """SELECT j.id, j.coordinator_id, j.company_name, j.trip_type, j.office, j.vehicle_type,
+                      j.office_address, j.office_lat, j.office_lng, j.pickup_time, j.drop_time, j.vehicle_ac,
                       j.fare_paise, j.status, j.claimed_by, u.name AS claimed_by_name, j.paid_at, j.version
                  FROM company_jobs j LEFT JOIN users u ON u.id = j.claimed_by
                 WHERE $where""",
@@ -242,6 +282,12 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
                 vehicleType = rs.getString("vehicle_type"),
                 farePaise = rs.getLong("fare_paise"),
                 status = rs.getString("status"),
+                officeAddress = rs.getString("office_address") ?: "",
+                officeLat = rs.getObject("office_lat")?.let { (it as Number).toDouble() },
+                officeLng = rs.getObject("office_lng")?.let { (it as Number).toDouble() },
+                pickupTime = rs.getString("pickup_time") ?: "",
+                dropTime = rs.getString("drop_time") ?: "",
+                vehicleAc = rs.getBoolean("vehicle_ac"),
                 claimedBy = rs.getObject("claimed_by")?.let { (it as Number).toLong() },
                 claimedByName = rs.getString("claimed_by_name"),
                 paid = rs.getObject("paid_at") != null,
@@ -268,6 +314,26 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
                 pickupOtp = if (forCoordinator) rs.getString("pickup_otp") else null,
             )
         }.groupBy({ it.first }, { it.second })
-        return jobs.map { it.copy(stops = stopsByJob[it.id] ?: emptyList()) }
+        val withStops = jobs.map { it.copy(stops = stopsByJob[it.id] ?: emptyList()) }
+        return if (forCoordinator) withStops else withStops.map { maskForDriver(it) }
+    }
+
+    /**
+     * Privacy (spec 9–11): the driver sees pins + sequence, but employee details are revealed
+     * stop-by-stop — only the active stop (first not-picked-up) and past stops show name; phone shows
+     * only for the active stop while the trip is live; once COMPLETED all phones are hidden.
+     */
+    private fun maskForDriver(job: CompanyJobDto): CompanyJobDto {
+        val activeOrder = job.stops.filter { !it.pickedUp }.minOfOrNull { it.stopOrder }
+        val completed = job.status == "COMPLETED"
+        return job.copy(stops = job.stops.map { s ->
+            val future = activeOrder != null && s.stopOrder > activeOrder
+            val isActive = activeOrder != null && s.stopOrder == activeOrder && !completed
+            s.copy(
+                employeeName = if (future) "" else s.employeeName,          // hide future names
+                phone = if (isActive) s.phone else "",                      // phone only on the active stop, live
+                pickupOtp = null,                                           // driver never reads the code
+            )
+        })
     }
 }

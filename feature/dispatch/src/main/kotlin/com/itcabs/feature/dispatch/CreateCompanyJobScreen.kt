@@ -69,9 +69,9 @@ private data class StopForm(
     val phone: String = "",
 )
 
-/** Coordinator create flow: one company + trip type + ordered employee stops, one cab. */
+/** Coordinator create/edit flow: one company + trip type + ordered employee stops, one cab. */
 @Composable
-fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = hiltViewModel()) {
+fun CreateCompanyJobScreen(onDone: () -> Unit, editJob: com.itcabs.domain.model.CompanyJob? = null, viewModel: CompanyJobViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     LaunchedEffect(state.published) { if (state.published) onDone() }
@@ -86,27 +86,39 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
         }
     }
 
-    var company by remember { mutableStateOf("") }
-    var tripType by remember { mutableStateOf(TripType.DROP) }
-    var office by remember { mutableStateOf("") }
-    var vehicle by remember { mutableStateOf("Sedan") }
-    var fare by remember { mutableStateOf("") }
-    var stops by remember { mutableStateOf(listOf(StopForm())) }
-    var searchIndex by remember { mutableStateOf(-1) }
+    var company by remember { mutableStateOf(editJob?.companyName ?: "") }
+    var tripType by remember { mutableStateOf(editJob?.tripType ?: TripType.DROP) }
+    var officeAddr by remember { mutableStateOf(editJob?.officeAddress?.ifBlank { editJob.office } ?: "") }
+    var officeLat by remember { mutableStateOf(editJob?.officeLat) }
+    var officeLng by remember { mutableStateOf(editJob?.officeLng) }
+    var officePlaceId by remember { mutableStateOf<String?>(null) }
+    var pickupTime by remember { mutableStateOf(editJob?.pickupTime ?: "") }
+    var dropTime by remember { mutableStateOf(editJob?.dropTime ?: "") }
+    var vehicleType by remember { mutableStateOf(editJob?.vehicleType?.uppercase()?.takeIf { it == "SEDAN" || it == "SUV" } ?: "SEDAN") }
+    var ac by remember { mutableStateOf(editJob?.vehicleAc ?: true) }
+    var fare by remember { mutableStateOf(editJob?.let { (it.farePaise / 100).toString() } ?: "") }
+    var stops by remember { mutableStateOf(editJob?.stops?.map { StopForm(it.employeeName, it.address, it.lat, it.lng, it.placeId, it.phone) }?.ifEmpty { listOf(StopForm()) } ?: listOf(StopForm())) }
+    var searchIndex by remember { mutableStateOf(-1) }   // -2 = company office, >=0 = stop index
     var placesError by remember { mutableStateOf<String?>(null) }
+    val maxStops = if (vehicleType == "SUV") 6 else 4
 
     // Places autocomplete returns a Place → fill the stop being searched; surface any error so we
     // can see why (usually "legacy Places API not enabled", billing, or key-restriction propagation).
     val placesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         when (res.resultCode) {
-            Activity.RESULT_OK -> if (searchIndex in stops.indices) res.data?.let { data ->
+            Activity.RESULT_OK -> res.data?.let { data ->
                 val p = Autocomplete.getPlaceFromIntent(data)
                 placesError = null
-                stops = stops.mapIndexed { j, s ->
-                    if (j == searchIndex) s.copy(
-                        address = p.address ?: p.name ?: s.address,
-                        lat = p.latLng?.latitude, lng = p.latLng?.longitude, placeId = p.id,
-                    ) else s
+                if (searchIndex == -2) {
+                    officeAddr = p.address ?: p.name ?: officeAddr
+                    officeLat = p.latLng?.latitude; officeLng = p.latLng?.longitude; officePlaceId = p.id
+                } else if (searchIndex in stops.indices) {
+                    stops = stops.mapIndexed { j, s ->
+                        if (j == searchIndex) s.copy(
+                            address = p.address ?: p.name ?: s.address,
+                            lat = p.latLng?.latitude, lng = p.latLng?.longitude, placeId = p.id,
+                        ) else s
+                    }
                 }
             }
             AutocompleteActivity.RESULT_ERROR -> {
@@ -130,7 +142,7 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
             .verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("New Company Job", style = MaterialTheme.typography.headlineMedium)
+        Text(if (editJob != null) "Edit Company Job" else "New Company Job", style = MaterialTheme.typography.headlineMedium)
 
         Card {
             SectionLbl("COMPANY")
@@ -140,8 +152,28 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
                 FilterChip(selected = tripType == TripType.PICKUP, onClick = { tripType = TripType.PICKUP }, label = { Text("Pickup") })
                 FilterChip(selected = tripType == TripType.DROP, onClick = { tripType = TripType.DROP }, label = { Text("Drop") })
             }
-            LblField(if (tripType == TripType.DROP) "Office (destination)" else "Office (origin)", office, { office = it }, "e.g. ABC HQ, Hitec City")
-            LblField("Vehicle type", vehicle, { vehicle = it }, "Sedan / SUV / Tempo")
+            // Company office via Places (same picker as employee stops).
+            Text(if (tripType == TripType.DROP) "Office address (destination)" else "Office address (origin)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = { searchIndex = -2; launchSearch(-2) }, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Place, null, Modifier.height(18.dp))
+                Text("  " + officeAddr.ifBlank { "Search company address…" }, modifier = Modifier.fillMaxWidth())
+            }
+            // Pickup + drop time.
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TimeField("Pickup time", pickupTime, Modifier.weight(1f)) { pickupTime = it }
+                TimeField("Drop time", dropTime, Modifier.weight(1f)) { dropTime = it }
+            }
+            // Vehicle type + category.
+            Text("Vehicle type", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = vehicleType == "SEDAN", onClick = { vehicleType = "SEDAN" }, label = { Text("Sedan") })
+                FilterChip(selected = vehicleType == "SUV", onClick = { vehicleType = "SUV" }, label = { Text("SUV") })
+            }
+            Text("Vehicle category", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = ac, onClick = { ac = true }, label = { Text("AC") })
+                FilterChip(selected = !ac, onClick = { ac = false }, label = { Text("Non-AC") })
+            }
             LblField("Fare for the whole job (₹)", fare, { fare = it.filter(Char::isDigit) }, "e.g. 900")
         }
 
@@ -154,15 +186,17 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
                     enabled = stops.count { it.lat != null && it.lng != null } >= 3,
                     shape = MaterialTheme.shapes.small,
                 ) { Icon(Icons.Filled.Route, null, Modifier.height(18.dp)); Text("Optimize") }
-                OutlinedButton(onClick = { stops = stops + StopForm() }, shape = MaterialTheme.shapes.small) {
+                OutlinedButton(onClick = { if (stops.size < maxStops) stops = stops + StopForm() }, enabled = stops.size < maxStops, shape = MaterialTheme.shapes.small) {
                     Icon(Icons.Filled.Add, null, Modifier.height(18.dp)); Text("Add")
                 }
             }
         }
         Text(
-            if (tripType == TripType.PICKUP) "Pickup order (first → last), then drop at the office."
+            if (stops.size >= maxStops) "$vehicleType is full — max $maxStops stops."
+            else if (tripType == TripType.PICKUP) "Pickup order (first → last), then drop at the office."
             else "Drop order (first → last), starting from the office.",
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (stops.size >= maxStops) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         stops.forEachIndexed { i, s ->
@@ -181,20 +215,21 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
         Button(
             onClick = {
-                viewModel.create(
-                    NewCompanyJob(
-                        companyName = company, tripType = tripType, office = office, vehicleType = vehicle,
-                        farePaise = (fare.toLongOrNull() ?: 0) * 100,
-                        stops = stops.map { f -> NewStop(f.name, f.address, f.lat, f.lng, f.placeId, f.phone) },
-                    ),
+                val job = NewCompanyJob(
+                    companyName = company, tripType = tripType, office = officeAddr, officeAddress = officeAddr,
+                    officeLat = officeLat, officeLng = officeLng, officePlaceId = officePlaceId,
+                    pickupTime = pickupTime, dropTime = dropTime, vehicleType = vehicleType, vehicleAc = ac,
+                    farePaise = (fare.toLongOrNull() ?: 0) * 100,
+                    stops = stops.map { f -> NewStop(f.name, f.address, f.lat, f.lng, f.placeId, f.phone) },
                 )
+                if (editJob != null) viewModel.edit(editJob.id, job) else viewModel.create(job)
             },
-            enabled = canPublish && !state.loading,
+            enabled = canPublish && stops.size <= maxStops && !state.loading,
             shape = MaterialTheme.shapes.small,
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) {
             if (state.loading) CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-            else Text("Publish Job", style = MaterialTheme.typography.titleLarge)
+            else Text(if (editJob != null) "Save Changes" else "Publish Job", style = MaterialTheme.typography.titleLarge)
         }
     }
 }
@@ -264,6 +299,24 @@ private fun stopKm(a: StopForm, b: StopForm): Double {
     val h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(Math.toRadians(a.lat)) * Math.cos(Math.toRadians(b.lat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
     return r * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+}
+
+@Composable
+private fun TimeField(label: String, value: String, modifier: Modifier = Modifier, onPick: (String) -> Unit) {
+    val context = LocalContext.current
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedButton(
+            onClick = {
+                val now = java.util.Calendar.getInstance()
+                android.app.TimePickerDialog(
+                    context, { _, h, m -> onPick("%02d:%02d".format(h, m)) },
+                    now.get(java.util.Calendar.HOUR_OF_DAY), now.get(java.util.Calendar.MINUTE), true,
+                ).show()
+            },
+            shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(),
+        ) { Text(value.ifBlank { "Pick" }) }
+    }
 }
 
 @Composable

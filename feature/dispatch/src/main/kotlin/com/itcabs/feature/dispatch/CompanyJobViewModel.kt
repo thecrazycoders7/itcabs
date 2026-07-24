@@ -67,10 +67,18 @@ class CompanyJobViewModel @Inject constructor(
     }
 
     fun setStatus(jobId: Long, status: LegStatus) = act { repo.setStatus(jobId, status) }
-    fun replaceStops(jobId: Long, stops: List<NewStop>) = act { repo.replaceStops(jobId, stops) }
-    fun assign(jobId: Long, driverId: Long) = act { repo.assign(jobId, driverId).map { } }
     fun markPaid(jobId: Long) = act { repo.markPaid(jobId) }
     fun markNoShow(jobId: Long) = act { repo.markNoShow(jobId) }
+
+    fun edit(jobId: Long, job: NewCompanyJob) {
+        _state.update { it.copy(loading = true, error = null, published = false) }
+        viewModelScope.launch {
+            when (val r = repo.edit(jobId, job)) {
+                is AppResult.Ok -> { _state.update { it.copy(loading = false, published = true) }; refresh() }
+                is AppResult.Err -> _state.update { it.copy(loading = false, error = r.message) }
+            }
+        }
+    }
 
     fun loadDrivers() {
         viewModelScope.launch {

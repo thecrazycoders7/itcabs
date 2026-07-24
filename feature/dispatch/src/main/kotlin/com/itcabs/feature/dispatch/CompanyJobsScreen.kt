@@ -43,7 +43,7 @@ import com.itcabs.domain.model.LegStatus
 @Composable
 fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
     var showCreate by remember { mutableStateOf(false) }
-    var assignJob by remember { mutableStateOf<CompanyJob?>(null) }
+    var editJob by remember { mutableStateOf<CompanyJob?>(null) }
     var driverProfileId by remember { mutableStateOf<Long?>(null) }
     var mapJob by remember { mutableStateOf<CompanyJob?>(null) }
     var chatJob by remember { mutableStateOf<CompanyJob?>(null) }
@@ -51,6 +51,10 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
 
     if (showCreate) {
         CreateCompanyJobScreen(onDone = { showCreate = false })
+        return
+    }
+    editJob?.let { j ->
+        CreateCompanyJobScreen(onDone = { editJob = null }, editJob = j)
         return
     }
     mapJob?.let { CompanyRouteMapScreen(job = it, onBack = { mapJob = null }, track = true); return }
@@ -81,7 +85,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
                 items(state.jobs, key = { it.id }) { job ->
                     CompanyJobCard(
                         job = job,
-                        onAssign = { assignJob = job; viewModel.loadDrivers() },
+                        onEdit = { editJob = job },
                         onConfirm = { viewModel.setStatus(job.id, LegStatus.CONFIRMED) },
                         onComplete = { viewModel.setStatus(job.id, LegStatus.COMPLETED) },
                         onCancel = { viewModel.setStatus(job.id, LegStatus.CANCELLED) },
@@ -96,14 +100,11 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
         }
     }
 
-    assignJob?.let { job ->
-        AssignDriverDialog(state.verifiedDrivers, onDismiss = { assignJob = null }, onPick = { viewModel.assign(job.id, it); assignJob = null })
-    }
     driverProfileId?.let { DriverProfileDialog(it, onDismiss = { driverProfileId = null }) }
 }
 
 @Composable
-private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onNoShow: () -> Unit, onMarkPaid: () -> Unit, onDriverProfile: () -> Unit, onMap: () -> Unit, onChat: () -> Unit) {
+private fun CompanyJobCard(job: CompanyJob, onEdit: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onNoShow: () -> Unit, onMarkPaid: () -> Unit, onDriverProfile: () -> Unit, onMap: () -> Unit, onChat: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(16.dp),
@@ -141,7 +142,7 @@ private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () 
         Row(Modifier.fillMaxWidth(), Arrangement.End, Alignment.CenterVertically) {
             when (job.status) {
                 LegStatus.OPEN -> {
-                    TextButton(onClick = onAssign) { Text("Assign") }
+                    TextButton(onClick = onEdit) { Text("Edit") }
                     TextButton(onClick = onCancel) { Text("Cancel", color = MaterialTheme.colorScheme.error) }
                 }
                 LegStatus.CLAIMED -> {
@@ -179,23 +180,3 @@ private fun shareCompanyCsv(context: android.content.Context, jobs: List<Company
     context.startActivity(android.content.Intent.createChooser(send, "Export company jobs"))
 }
 
-@Composable
-private fun AssignDriverDialog(drivers: List<com.itcabs.domain.model.VerifiedDriver>, onDismiss: () -> Unit, onPick: (Long) -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Assign to a driver") },
-        text = {
-            if (drivers.isEmpty()) Text("No verified drivers available.")
-            else Column {
-                drivers.forEach { d ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text(d.name.ifBlank { "Driver ${d.id}" })
-                        TextButton(onClick = { onPick(d.id) }) { Text("Assign") }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
-}

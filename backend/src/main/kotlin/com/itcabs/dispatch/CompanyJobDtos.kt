@@ -15,7 +15,14 @@ data class CompanyJobInput(
     val companyName: String,
     val tripType: String,          // PICKUP or DROP
     val office: String = "",
-    val vehicleType: String = "",
+    val officeAddress: String = "",
+    val officeLat: Double? = null,
+    val officeLng: Double? = null,
+    val officePlaceId: String? = null,
+    val pickupTime: String = "",   // "HH:mm"
+    val dropTime: String = "",
+    val vehicleType: String = "",  // SEDAN or SUV
+    val vehicleAc: Boolean = true,
     val farePaise: Long,
     val publishAt: String? = null, // ISO-8601; future = scheduled
     val stops: List<StopInput>,
@@ -53,6 +60,12 @@ data class CompanyJobDto(
     val office: String,
     val vehicleType: String,
     val farePaise: Long,
+    val officeAddress: String = "",
+    val officeLat: Double? = null,
+    val officeLng: Double? = null,
+    val pickupTime: String = "",
+    val dropTime: String = "",
+    val vehicleAc: Boolean = true,
     val status: String,
     val claimedBy: Long?,
     val claimedByName: String?,

@@ -33,6 +33,14 @@ class CompanyJobController(
         return mapOf("ok" to true)
     }
 
+    /** Full edit while OPEN (before a driver accepts): job fields + stops. */
+    @PatchMapping("/{id}")
+    fun edit(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: CompanyJobInput): CompanyJobDto {
+        val job = jobs.edit(requireUserId(req), id, body)
+        events.legChanged(id)
+        return job
+    }
+
     @PatchMapping("/{id}/status")
     fun setStatus(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: StatusUpdate) {
         val driverId = jobs.setStatus(requireUserId(req), id, body.status)
@@ -41,13 +49,7 @@ class CompanyJobController(
             push.notifyUser(driverId, "Trip cancelled", "A company trip you took was cancelled.")
     }
 
-    @PostMapping("/{id}/assign")
-    fun assign(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: CompanyAssignInput): CompanyJobDto {
-        val job = jobs.assign(requireUserId(req), id, body.driverId)
-        events.legChanged(id)
-        push.notifyUser(body.driverId, "Trip assigned to you", "You've been assigned a ${job.companyName} ${job.tripType.lowercase()} trip.", route = "driver_company")
-        return job
-    }
+    // Manual assignment removed (spec 5): drivers self-claim eligible jobs only.
 
     @PostMapping("/{id}/paid")
     fun markPaid(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
@@ -79,7 +81,7 @@ class CompanyJobController(
 
     // driver
     @GetMapping("/feed")
-    fun feed() = jobs.feed()
+    fun feed(req: HttpServletRequest) = jobs.feed(requireUserId(req))
 
     @GetMapping("/claimed")
     fun myTrips(req: HttpServletRequest) = jobs.myTrips(requireUserId(req))

@@ -112,9 +112,14 @@ private fun FeedCompanyCard(job: CompanyJob, claiming: Boolean, onClaim: () -> U
             Text(job.companyName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(formatRupees(job.farePaise), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         }
-        Text("${job.tripType.name.lowercase().replaceFirstChar { it.uppercase() }} · ${job.stops.size} stops",
+        val vt = "${job.vehicleType}${if (job.vehicleAc) " · AC" else " · Non-AC"}"
+        Text("${job.tripType.name.lowercase().replaceFirstChar { it.uppercase() }} · ${job.stops.size} stops · $vt",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        job.stops.take(4).forEachIndexed { i, s -> Text("${i + 1}. ${s.employeeName}" + if (s.address.isNotBlank()) " · ${s.address}" else "", style = MaterialTheme.typography.bodySmall) }
+        // Privacy: no employee names in the feed — just areas so the driver can gauge the route.
+        val areas = job.stops.mapNotNull { it.address.ifBlank { null } }.distinct().take(4).joinToString(", ")
+        if (areas.isNotBlank()) Text(areas, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (job.pickupTime.isNotBlank() || job.dropTime.isNotBlank())
+            Text("Pickup ${job.pickupTime.ifBlank { "—" }} · Drop ${job.dropTime.ifBlank { "—" }}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), Arrangement.End) {
             Button(onClick = onClaim, enabled = !claiming, shape = MaterialTheme.shapes.small) {
                 if (claiming) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
@@ -126,6 +131,7 @@ private fun FeedCompanyCard(job: CompanyJob, claiming: Boolean, onClaim: () -> U
 
 @Composable
 private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (JobStop) -> Unit, onNavigate: (JobStop) -> Unit, onChat: () -> Unit, onRelease: () -> Unit, onComplete: () -> Unit) {
+    val context = LocalContext.current
     CardBox {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(job.companyName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -138,17 +144,26 @@ private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (Jo
             color = if (job.paid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
         val active = job.status == LegStatus.CLAIMED || job.status == LegStatus.CONFIRMED
         val anyPicked = job.stops.any { it.pickedUp }
+        // Privacy: only the active stop (first not-picked) reveals name/phone; future stops stay locked.
+        val activeStopId = job.stops.firstOrNull { !it.pickedUp }?.id
         job.stops.forEachIndexed { i, s ->
+            val isActive = s.id == activeStopId
+            val label = when {
+                s.pickedUp -> "${i + 1}. ${s.employeeName.ifBlank { "Picked up" }}  ✓"
+                isActive -> "${i + 1}. ${s.employeeName.ifBlank { "Current stop" }}" + if (s.phone.isNotBlank()) " · ${s.phone}" else ""
+                else -> "${i + 1}. Upcoming stop 🔒"
+            }
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text(
-                    "${i + 1}. ${s.employeeName}" + if (s.pickedUp) "  ✓" else "",
-                    style = MaterialTheme.typography.bodyMedium,
+                Text(label, style = MaterialTheme.typography.bodyMedium,
                     color = if (s.pickedUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
+                    modifier = Modifier.weight(1f))
+                // Navigate to any stop by pin; details/pickup only for the active one.
                 if (active) {
                     TextButton(onClick = { onNavigate(s) }) { Icon(Icons.Filled.Navigation, null, Modifier.size(16.dp)) }
-                    if (!s.pickedUp) TextButton(onClick = { onConfirm(s) }) { Text("Pickup") }
+                    if (isActive) {
+                        if (s.phone.isNotBlank()) TextButton(onClick = { callPhone(context, s.phone) }) { Text("Call") }
+                        TextButton(onClick = { onConfirm(s) }) { Text("Pickup") }
+                    }
                 }
             }
         }
@@ -158,7 +173,6 @@ private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (Jo
             // Release only before any pickup has happened (honest early bail-out).
             if (active && !anyPicked) TextButton(onClick = onRelease) { Text("Release", color = MaterialTheme.colorScheme.error) }
             if (active) {
-                val context = LocalContext.current
                 Button(onClick = { navigateRoute(context, job) }, enabled = job.stops.any { it.lat != null }, shape = MaterialTheme.shapes.small) {
                     Icon(Icons.Filled.Navigation, null, Modifier.size(16.dp)); Text(" Route")
                 }
@@ -176,6 +190,10 @@ private fun CardBox(content: @Composable androidx.compose.foundation.layout.Colu
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp), content = content,
     )
+}
+
+private fun callPhone(context: android.content.Context, phone: String) {
+    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
 }
 
 private fun navigateTo(context: android.content.Context, stop: JobStop) {

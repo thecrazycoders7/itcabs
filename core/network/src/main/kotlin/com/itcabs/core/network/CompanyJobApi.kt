@@ -28,8 +28,8 @@ interface CompanyJobApi {
     @PATCH("api/v1/company-jobs/{id}/status")
     suspend fun setStatus(@Path("id") id: Long, @Body body: StatusUpdateDto): Response<Unit>
 
-    @POST("api/v1/company-jobs/{id}/assign")
-    suspend fun assign(@Path("id") id: Long, @Body body: CompanyAssignDto): Response<CompanyJobDto>
+    @retrofit2.http.PATCH("api/v1/company-jobs/{id}")
+    suspend fun edit(@Path("id") id: Long, @Body body: CompanyJobInputDto): Response<CompanyJobDto>
 
     @GET("api/v1/company-jobs/feed")
     suspend fun feed(): Response<List<CompanyJobDto>>

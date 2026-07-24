@@ -12,8 +12,9 @@ interface CompanyJobRepository {
     suspend fun create(job: NewCompanyJob): AppResult<CompanyJob>
     suspend fun mine(): AppResult<List<CompanyJob>>
     suspend fun replaceStops(jobId: Long, stops: List<NewStop>): AppResult<Unit>
+    /** Full edit while OPEN (job fields + stops). */
+    suspend fun edit(jobId: Long, job: NewCompanyJob): AppResult<CompanyJob>
     suspend fun setStatus(jobId: Long, status: LegStatus): AppResult<Unit>
-    suspend fun assign(jobId: Long, driverId: Long): AppResult<CompanyJob>
 
     suspend fun markPaid(jobId: Long): AppResult<Unit>
     suspend fun markNoShow(jobId: Long): AppResult<Unit>

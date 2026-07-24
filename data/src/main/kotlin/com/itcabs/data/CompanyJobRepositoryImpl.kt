@@ -32,8 +32,8 @@ class CompanyJobRepositoryImpl(private val api: CompanyJobApi) : CompanyJobRepos
     override suspend fun setStatus(jobId: Long, status: LegStatus): AppResult<Unit> =
         api.setStatus(jobId, StatusUpdateDto(status.name)).asResult { }
 
-    override suspend fun assign(jobId: Long, driverId: Long): AppResult<CompanyJob> =
-        api.assign(jobId, CompanyAssignDto(driverId)).asResult { it.toDomain() }
+    override suspend fun edit(jobId: Long, job: NewCompanyJob): AppResult<CompanyJob> =
+        api.edit(jobId, job.toDto()).asResult { it.toDomain() }
 
     override suspend fun feed(): AppResult<List<CompanyJob>> =
         api.feed().asResult { list -> list.map { it.toDomain() } }
@@ -59,8 +59,9 @@ private fun NewStop.toDto() = StopInputDto(employeeName, address, lat, lng, plac
 
 private fun NewCompanyJob.toDto() = CompanyJobInputDto(
     companyName = companyName, tripType = tripType.name, office = office,
-    vehicleType = vehicleType, farePaise = farePaise, publishAt = publishAt,
-    stops = stops.map { it.toDto() },
+    officeAddress = officeAddress, officeLat = officeLat, officeLng = officeLng, officePlaceId = officePlaceId,
+    pickupTime = pickupTime, dropTime = dropTime, vehicleType = vehicleType, vehicleAc = vehicleAc,
+    farePaise = farePaise, publishAt = publishAt, stops = stops.map { it.toDto() },
 )
 
 private fun StopDto.toDomain() = JobStop(id, employeeName, address, lat, lng, placeId, phone, stopOrder, pickedUp, pickupOtp)
@@ -68,7 +69,9 @@ private fun StopDto.toDomain() = JobStop(id, employeeName, address, lat, lng, pl
 private fun CompanyJobDto.toDomain() = CompanyJob(
     id = id, coordinatorId = coordinatorId, companyName = companyName,
     tripType = runCatching { TripType.valueOf(tripType) }.getOrDefault(TripType.PICKUP),
-    office = office, vehicleType = vehicleType, farePaise = farePaise,
+    office = office, officeAddress = officeAddress, officeLat = officeLat, officeLng = officeLng,
+    pickupTime = pickupTime, dropTime = dropTime, vehicleType = vehicleType, vehicleAc = vehicleAc,
+    farePaise = farePaise,
     status = runCatching { LegStatus.valueOf(status) }.getOrDefault(LegStatus.OPEN),
     claimedBy = claimedBy, claimedByName = claimedByName, paid = paid,
     stops = stops.map { it.toDomain() }, version = version,

@@ -1,7 +1,6 @@
 package com.itcabs.data
 
 import com.itcabs.core.network.CompanyJobApi
-import com.itcabs.core.network.dto.CompanyAssignDto
 import com.itcabs.core.network.dto.CompanyJobDto
 import com.itcabs.core.network.dto.CompanyJobInputDto
 import com.itcabs.core.network.dto.StatusUpdateDto
@@ -20,7 +19,8 @@ import org.junit.Test
 import retrofit2.Response
 
 private fun jobDto(status: String, paid: Boolean = false, stops: List<StopDto> = listOf(StopDto(1, "Amar"))) =
-    CompanyJobDto(1, 100, "ABC", "DROP", "HQ", "Sedan", 90000, status, claimedBy = null, paid = paid, stops = stops)
+    CompanyJobDto(id = 1, coordinatorId = 100, companyName = "ABC", tripType = "DROP", office = "HQ",
+        vehicleType = "SEDAN", farePaise = 90000, status = status, claimedBy = null, paid = paid, stops = stops)
 
 /** Fake CompanyJobApi — canned responses, plain JVM (no HTTP), for the repository mapping/flow. */
 private class FakeCompanyJobApi(private val claimStatus: String = "CLAIMED") : CompanyJobApi {
@@ -29,7 +29,7 @@ private class FakeCompanyJobApi(private val claimStatus: String = "CLAIMED") : C
     override suspend fun mine() = Response.success(listOf(jobDto("OPEN")))
     override suspend fun replaceStops(id: Long, body: StopsUpdateDto) = Response.success(mapOf("ok" to true))
     override suspend fun setStatus(id: Long, body: StatusUpdateDto) = Response.success(Unit)
-    override suspend fun assign(id: Long, body: CompanyAssignDto) = Response.success(jobDto("CLAIMED"))
+    override suspend fun edit(id: Long, body: CompanyJobInputDto) = Response.success(jobDto("OPEN"))
     override suspend fun feed() = Response.success(listOf(jobDto("OPEN")))
     override suspend fun myTrips() = Response.success(listOf(jobDto("CLAIMED")))
     override suspend fun claim(id: Long) = Response.success(jobDto(claimStatus))
@@ -46,7 +46,7 @@ class CompanyJobRepositoryImplTest {
 
     @Test fun `create maps trip type, fare and stops through to domain`() = runBlocking {
         val r = repo.create(
-            NewCompanyJob("ABC", TripType.DROP, "HQ", "Sedan", 90000,
+            NewCompanyJob(companyName = "ABC", tripType = TripType.DROP, office = "HQ", vehicleType = "SEDAN", farePaise = 90000,
                 stops = listOf(NewStop("Amar", "Ameerpet", 17.44, 78.44), NewStop("Bina", "Madhapur", 17.45, 78.39))),
         )
         assertTrue(r is AppResult.Ok)

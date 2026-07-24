@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -44,7 +45,11 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedTextField(state.vehicleType, viewModel::onVehicleTypeChange, label = { Text("Vehicle type (Sedan/SUV)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Text("Vehicle type", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = state.vehicleType.equals("SEDAN", true), onClick = { viewModel.onVehicleTypeChange("SEDAN") }, label = { Text("Sedan") })
+            FilterChip(selected = state.vehicleType.equals("SUV", true), onClick = { viewModel.onVehicleTypeChange("SUV") }, label = { Text("SUV") })
+        }
         OutlinedTextField(state.vehicleReg, viewModel::onVehicleRegChange, label = { Text("Registration number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(state.aadhaar, viewModel::onAadhaarChange, label = { Text("Aadhaar number") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
         OutlinedTextField(state.rcNumber, viewModel::onRcNumberChange, label = { Text("RC number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
