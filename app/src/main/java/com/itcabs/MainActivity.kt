@@ -1,5 +1,6 @@
 package com.itcabs
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -58,16 +59,26 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    // Deep-link target from a notification tap. Backed by state so a tap while the app is already
+    // running (delivered via onNewIntent, not onCreate) still routes.
+    private val route = androidx.compose.runtime.mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val route = intent?.getStringExtra("route") // deep-link target from a notification tap
+        route.value = intent?.getStringExtra("route")
         setContent {
             ItCabsTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    ItCabsApp(route = route)
+                    ItCabsApp(route = route.value)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("route")?.let { route.value = it }
     }
 }
 
@@ -87,7 +98,30 @@ private fun ItCabsApp(root: RootViewModel = hiltViewModel(), route: String? = nu
                 webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
                 onSignedIn = { role -> root.onSignedIn(role) },
             )
-            is RootState.SignedIn -> RoleHome(role = s.role, isAdmin = s.isAdmin, route = route, onSignOut = { root.signOut() })
+            is RootState.SignedIn -> {
+                NotificationPermissionGate()
+                RoleHome(role = s.role, isAdmin = s.isAdmin, route = route, onSignOut = { root.signOut() })
+            }
+        }
+    }
+}
+
+/**
+ * Ask for POST_NOTIFICATIONS once we're signed in (Android 13+). This app is push-driven — without
+ * it, new-trip and re-upload alerts are silently dropped by the OS. No-op below API 33.
+ */
+@Composable
+private fun NotificationPermissionGate() {
+    if (android.os.Build.VERSION.SDK_INT < 33) return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { /* if denied, the user can enable it later in system settings */ }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }

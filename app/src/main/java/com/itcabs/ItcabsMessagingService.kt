@@ -29,7 +29,12 @@ class ItcabsMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        val notification = message.notification ?: return
+        // Support both notification-payload and data-only messages: fall back to data fields so the
+        // alert renders consistently whether the app is in the foreground or background.
+        val title = message.notification?.title ?: message.data["title"] ?: return
+        val body = message.notification?.body ?: message.data["body"].orEmpty()
+        val route = message.data["route"]
+
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Trips", NotificationManager.IMPORTANCE_HIGH),
@@ -37,20 +42,24 @@ class ItcabsMessagingService : FirebaseMessagingService() {
         // Tapping opens the app deep-linked to the route the backend sent (e.g. "coordinator_jobs").
         val tapIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            message.data["route"]?.let { putExtra("route", it) }
+            route?.let { putExtra("route", it) }
         }
         val pending = PendingIntent.getActivity(
-            this, 0, tapIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            this, route.hashCode(), tapIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(notification.title)
-            .setContentText(notification.body)
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setContentTitle(title)
+            .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pending)
             .build()
-        nm.notify(System.currentTimeMillis().toInt(), notif)
+        // Stable id per route so a fresh alert for the same context replaces the old one instead of stacking.
+        nm.notify(route?.hashCode() ?: NOTIF_ID_DEFAULT, notif)
     }
 
-    private companion object { const val CHANNEL_ID = "itcabs_trips" }
+    private companion object {
+        const val CHANNEL_ID = "itcabs_trips"
+        const val NOTIF_ID_DEFAULT = 1001
+    }
 }

@@ -57,15 +57,16 @@ fun DriverProfileDialog(driverId: Long, onDismiss: () -> Unit, viewModel: Driver
         onDismissRequest = onDismiss,
         title = { Text(p?.name?.ifBlank { "Driver" } ?: "Driver") },
         text = {
-            if (p == null) Text("Loading…")
+            val prof = p
+            if (prof == null) Text("Loading…")
             else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Line("Rating", if (p!!.ratingCount > 0 && p!!.avgRating != null) "★ %.1f (%d)".format(p!!.avgRating, p!!.ratingCount) else "—")
-                Line("Trips completed", p!!.tripsCompleted.toString())
-                Line("No-shows", p!!.noShows.toString())
-                Line("Vehicle", listOfNotNull(p!!.vehicleType, p!!.vehicleReg).joinToString(" · ").ifBlank { "—" })
-                Line("Verification", p!!.kycStatus.name)
-                p!!.phone?.takeIf { it.isNotBlank() }?.let { Line("Phone", it) }
-                p!!.email?.takeIf { it.isNotBlank() }?.let { Line("Email", it) }
+                Line("Rating", if (prof.ratingCount > 0 && prof.avgRating != null) "★ %.1f (%d)".format(prof.avgRating, prof.ratingCount) else "—")
+                Line("Trips completed", prof.tripsCompleted.toString())
+                Line("No-shows", prof.noShows.toString())
+                Line("Vehicle", listOfNotNull(prof.vehicleType, prof.vehicleReg).joinToString(" · ").ifBlank { "—" })
+                Line("Verification", prof.kycStatus.name)
+                prof.phone?.takeIf { it.isNotBlank() }?.let { Line("Phone", it) }
+                prof.email?.takeIf { it.isNotBlank() }?.let { Line("Email", it) }
             }
         },
         confirmButton = {

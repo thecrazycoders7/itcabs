@@ -22,7 +22,12 @@ class SupabaseStorage(
     private val supabaseUrl: String,
     private val anonKey: String,
     private val tokens: TokenSession,
-    private val client: OkHttpClient = OkHttpClient(),
+    // Generous timeouts: document uploads over weak mobile links exceed OkHttp's 10s write default.
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build(),
 ) {
     /** Uploads [jpeg] to kyc-docs/<uid>/<name>; on success returns the object path for registration. */
     suspend fun upload(name: String, jpeg: ByteArray): AppResult<String> {

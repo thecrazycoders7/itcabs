@@ -19,8 +19,9 @@ android {
         applicationId = "com.itcabs"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.2"
+        // Override per release so Play accepts updates: -Pitcabs.versionCode=5
+        versionCode = (findProperty("itcabs.versionCode") as String?)?.toInt() ?: 2
+        versionName = (findProperty("itcabs.versionName") as String?) ?: "0.2"
         // Debug default: emulator → host loopback for the local dev backend.
         buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8081/\"")
         // Supabase Auth. The anon key is a publishable client key (RLS-protected), safe to embed.
@@ -55,12 +56,29 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    signingConfigs {
+        // Real upload keystore, supplied out-of-band (never committed). Set itcabs.keystore (or the
+        // ITCABS_KEYSTORE env var) + the matching password/alias props to sign a Play-ready build.
+        create("upload") {
+            val storePath = System.getenv("ITCABS_KEYSTORE") ?: findProperty("itcabs.keystore") as String?
+            if (storePath != null) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("ITCABS_KEYSTORE_PW") ?: findProperty("itcabs.keystorePw") as String?
+                keyAlias = System.getenv("ITCABS_KEY_ALIAS") ?: findProperty("itcabs.keyAlias") as String?
+                keyPassword = System.getenv("ITCABS_KEY_PW") ?: findProperty("itcabs.keyPw") as String?
+            }
+        }
+    }
     buildTypes {
         release {
-            isMinifyEnabled = false
-            // ponytail: pilot signs the release with the debug key so testers can sideload it.
-            // Generate a proper upload keystore before a Play release.
-            signingConfig = signingConfigs.getByName("debug")
+            // R8 shrink + obfuscate for a smaller, harder-to-reverse Play build. Keep rules in
+            // proguard-rules.pro cover serialization/Retrofit/Hilt/Firebase.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Sign with the upload keystore when provided; otherwise debug-sign so testers can sideload.
+            val hasUploadKey = (System.getenv("ITCABS_KEYSTORE") ?: findProperty("itcabs.keystore") as String?) != null
+            signingConfig = if (hasUploadKey) signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
             // Hosted backend URL. Set at build time: -Pitcabs.baseUrl=https://itcabs-backend.onrender.com/
             // or the ITCABS_BASE_URL env var. Falls back to a placeholder so a bare build still compiles.
             // Default to the live pilot backend so a bare `assembleRelease` still works; override
@@ -103,10 +121,9 @@ dependencies {
     implementation(libs.androidx.security.crypto)
 
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth)
-    implementation(libs.firebase.firestore)
-    implementation(libs.firebase.storage)
-    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.auth)       // phone-OTP KYC
+    implementation(libs.firebase.messaging)  // FCM push
+    // firestore/storage removed — the port uses the backend API + Supabase Storage, not Firebase.
 
     testImplementation(libs.junit)
 }

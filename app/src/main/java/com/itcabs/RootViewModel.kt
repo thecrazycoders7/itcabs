@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -51,15 +52,19 @@ class RootViewModel @Inject constructor(
 
     /**
      * Cold start: if a Supabase session is stored, ask the backend who we are. Onboarded → SignedIn;
-     * authenticated-but-not-onboarded (or no/expired session) → SignedOut, and the AuthScreen picks
-     * up the onboarding step. ponytail: Supabase access tokens expire in ~1h with no auto-refresh
-     * yet — a returning user re-signs-in after that. Add Supabase refresh-token handling later.
+     * authenticated-but-not-onboarded → SignedOut, and the AuthScreen picks up the onboarding step.
+     * 401 refresh is handled transparently by TokenAuthenticator, so a plain expired token doesn't
+     * surface here. A transport/5xx error (e.g. Render's ~50s cold start returns 503) must NOT sign a
+     * returning user out — fall back to the Room-cached identity so they stay in the app.
      */
     private suspend fun resolve(): RootState {
         if (!auth.hasSession()) return RootState.SignedOut
         return when (val r = auth.currentUser()) {
             is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role, it.isAdmin) } ?: RootState.SignedOut
-            is AppResult.Err -> RootState.SignedOut
+            is AppResult.Err ->
+                if (r.code == 401 || r.code == 403) RootState.SignedOut  // real auth failure
+                else auth.getUserFlow().first()                          // transport/5xx: trust the cache
+                    ?.let { RootState.SignedIn(it.role, it.isAdmin) } ?: RootState.SignedOut
         }
     }
 
