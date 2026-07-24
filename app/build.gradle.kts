@@ -61,9 +61,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             // Hosted backend URL. Set at build time: -Pitcabs.baseUrl=https://itcabs-backend.onrender.com/
             // or the ITCABS_BASE_URL env var. Falls back to a placeholder so a bare build still compiles.
+            // Default to the live pilot backend so a bare `assembleRelease` still works; override
+            // with -Pitcabs.baseUrl=… or the ITCABS_BASE_URL env var for other environments.
             val releaseBaseUrl = (findProperty("itcabs.baseUrl") as String?)
                 ?: System.getenv("ITCABS_BASE_URL")
-                ?: "https://REPLACE-WITH-HOSTED-URL/"
+                ?: "https://itcabs.onrender.com/"
             buildConfigField("String", "BASE_URL", "\"$releaseBaseUrl\"")
 
             // Firebase App Distribution: upload this build to testers with
