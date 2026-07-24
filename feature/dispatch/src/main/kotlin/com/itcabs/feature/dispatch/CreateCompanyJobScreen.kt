@@ -49,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.widget.Autocomplete
+import com.google.android.libraries.places.widget.AutocompleteActivity
 import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import com.itcabs.domain.model.NewCompanyJob
 import com.itcabs.domain.model.NewStop
@@ -88,18 +89,24 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
     var fare by remember { mutableStateOf("") }
     var stops by remember { mutableStateOf(listOf(StopForm())) }
     var searchIndex by remember { mutableStateOf(-1) }
+    var placesError by remember { mutableStateOf<String?>(null) }
 
-    // Places autocomplete returns a Place → fill the stop being searched.
+    // Places autocomplete returns a Place → fill the stop being searched; surface any error so we
+    // can see why (usually "legacy Places API not enabled", billing, or key-restriction propagation).
     val placesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
-        if (res.resultCode == Activity.RESULT_OK && searchIndex in stops.indices) {
-            res.data?.let { data ->
+        when (res.resultCode) {
+            Activity.RESULT_OK -> if (searchIndex in stops.indices) res.data?.let { data ->
                 val p = Autocomplete.getPlaceFromIntent(data)
+                placesError = null
                 stops = stops.mapIndexed { j, s ->
                     if (j == searchIndex) s.copy(
                         address = p.address ?: p.name ?: s.address,
                         lat = p.latLng?.latitude, lng = p.latLng?.longitude, placeId = p.id,
                     ) else s
                 }
+            }
+            AutocompleteActivity.RESULT_ERROR -> {
+                placesError = res.data?.let { Autocomplete.getStatusFromIntent(it).statusMessage } ?: "Places error"
             }
         }
     }
@@ -165,6 +172,7 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
             )
         }
 
+        placesError?.let { Text("Location search error: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
 
         Button(

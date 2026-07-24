@@ -15,6 +15,22 @@ data class DriverProfile(
     val ratingCount: Int = 0,
 )
 
+/** A driver's public profile shown to the coordinator once the driver is on their job. */
+data class PublicDriverProfile(
+    val id: Long,
+    val name: String,
+    val phone: String?,
+    val email: String?,
+    val vehicleType: String?,
+    val vehicleReg: String?,
+    val kycStatus: KycStatus,
+    val tripsCompleted: Int,
+    val noShows: Int,
+    val photoUrl: String?,
+    val avgRating: Double?,
+    val ratingCount: Int,
+)
+
 /** A driver awaiting KYC approval, shown in the admin review queue. */
 data class PendingDriver(
     val id: Long,

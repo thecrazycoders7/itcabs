@@ -39,6 +39,17 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
     override suspend fun setAvailability(available: Boolean): AppResult<Unit> =
         api.setAvailability(AvailabilityDto(available)).asResult { }
 
+    override suspend fun publicProfile(driverId: Long): AppResult<com.itcabs.domain.model.PublicDriverProfile> =
+        api.publicProfile(driverId).asResult { d ->
+            com.itcabs.domain.model.PublicDriverProfile(
+                id = d.id, name = d.name ?: "", phone = d.phone, email = d.email,
+                vehicleType = d.vehicleType, vehicleReg = d.vehicleReg,
+                kycStatus = runCatching { KycStatus.valueOf(d.kycStatus ?: "NONE") }.getOrDefault(KycStatus.NONE),
+                tripsCompleted = d.tripsCompleted, noShows = d.noShows, photoUrl = d.photoUrl,
+                avgRating = d.avgRating, ratingCount = d.ratingCount,
+            )
+        }
+
     override suspend fun pendingDrivers(): AppResult<List<PendingDriver>> =
         api.pendingDrivers().asResult { list ->
             list.map {

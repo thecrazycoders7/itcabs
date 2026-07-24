@@ -2,6 +2,7 @@ package com.itcabs.core.network
 
 import com.itcabs.core.network.dto.AvailabilityDto
 import com.itcabs.core.network.dto.DriverProfileDto
+import com.itcabs.core.network.dto.DriverPublicDto
 import com.itcabs.core.network.dto.KycInputDto
 import com.itcabs.core.network.dto.PendingDriverDto
 import com.itcabs.core.network.dto.RejectInputDto
@@ -20,6 +21,9 @@ interface DriverApi {
 
     @POST("api/v1/driver/availability")
     suspend fun setAvailability(@Body body: AvailabilityDto): Response<Map<String, Boolean>>
+
+    @GET("api/v1/drivers/{id}/profile")
+    suspend fun publicProfile(@Path("id") id: Long): Response<DriverPublicDto>
 
     // admin (is_admin-gated server-side)
     @GET("api/v1/admin/drivers/pending")

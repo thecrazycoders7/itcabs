@@ -67,6 +67,36 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         )
     }
 
+    /** A driver's public profile — shown to a coordinator once a driver takes/gets their job. */
+    @GetMapping("/drivers/{id}/profile")
+    fun publicProfile(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any?> {
+        requireUserId(req) // any authenticated user
+        val u = db.queryForList("SELECT name, phone, email FROM users WHERE id = :id", MapSqlParameterSource("id", id))
+            .firstOrNull() ?: throw com.itcabs.shared.badRequest("no such driver")
+        val p = db.queryForList(
+            "SELECT vehicle_type, vehicle_reg, kyc_status, trips_completed, no_shows, photo_url FROM driver_profiles WHERE user_id = :id",
+            MapSqlParameterSource("id", id),
+        ).firstOrNull()
+        val rating = db.queryForList(
+            "SELECT avg(stars)::float AS avg, count(*) AS n FROM ratings WHERE ratee_id = :id",
+            MapSqlParameterSource("id", id),
+        ).first()
+        return mapOf(
+            "id" to id,
+            "name" to u["name"],
+            "phone" to u["phone"],
+            "email" to u["email"],
+            "vehicleType" to p?.get("vehicle_type"),
+            "vehicleReg" to p?.get("vehicle_reg"),
+            "kycStatus" to (p?.get("kyc_status") ?: "NONE"),
+            "tripsCompleted" to (p?.get("trips_completed") ?: 0),
+            "noShows" to (p?.get("no_shows") ?: 0),
+            "photoUrl" to p?.get("photo_url"),
+            "avgRating" to rating["avg"],
+            "ratingCount" to (rating["n"] as Number).toInt(),
+        )
+    }
+
     /** Admin: drivers waiting on KYC approval — the review queue for the in-app Admin tab. */
     @GetMapping("/admin/drivers/pending")
     fun pendingDrivers(req: HttpServletRequest): List<Map<String, Any?>> {

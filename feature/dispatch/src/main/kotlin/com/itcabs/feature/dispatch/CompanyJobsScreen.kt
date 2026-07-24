@@ -43,6 +43,7 @@ import com.itcabs.domain.model.LegStatus
 fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
     var showCreate by remember { mutableStateOf(false) }
     var assignJob by remember { mutableStateOf<CompanyJob?>(null) }
+    var driverProfileId by remember { mutableStateOf<Long?>(null) }
     val state by viewModel.state.collectAsState()
 
     if (showCreate) {
@@ -71,6 +72,7 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
                         onConfirm = { viewModel.setStatus(job.id, LegStatus.CONFIRMED) },
                         onComplete = { viewModel.setStatus(job.id, LegStatus.COMPLETED) },
                         onCancel = { viewModel.setStatus(job.id, LegStatus.CANCELLED) },
+                        onDriverProfile = { job.claimedBy?.let { driverProfileId = it } },
                     )
                 }
             }
@@ -80,10 +82,11 @@ fun CompanyJobsScreen(viewModel: CompanyJobViewModel = hiltViewModel()) {
     assignJob?.let { job ->
         AssignDriverDialog(state.verifiedDrivers, onDismiss = { assignJob = null }, onPick = { viewModel.assign(job.id, it); assignJob = null })
     }
+    driverProfileId?.let { DriverProfileDialog(it, onDismiss = { driverProfileId = null }) }
 }
 
 @Composable
-private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit) {
+private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () -> Unit, onComplete: () -> Unit, onCancel: () -> Unit, onDriverProfile: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(16.dp),
@@ -95,7 +98,12 @@ private fun CompanyJobCard(job: CompanyJob, onAssign: () -> Unit, onConfirm: () 
         }
         Text("${job.tripType.name.lowercase().replaceFirstChar { it.uppercase() }} · ${job.stops.size} stops · ${formatRupees(job.farePaise)}",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        job.claimedByName?.let { Text("Driver: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary) }
+        job.claimedByName?.let {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Driver: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+                TextButton(onClick = onDriverProfile) { Text("View profile") }
+            }
+        }
 
         // Ordered stops with pickup state + the code to relay to each employee.
         job.stops.forEachIndexed { i, s ->

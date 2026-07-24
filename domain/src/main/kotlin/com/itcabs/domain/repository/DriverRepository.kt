@@ -20,6 +20,9 @@ interface DriverRepository {
     /** Toggle whether this driver receives new-trip pushes. */
     suspend fun setAvailability(available: Boolean): AppResult<Unit>
 
+    /** A driver's public profile (for the coordinator once the driver is on their job). */
+    suspend fun publicProfile(driverId: Long): AppResult<com.itcabs.domain.model.PublicDriverProfile>
+
     // admin (is_admin only; enforced server-side)
     suspend fun pendingDrivers(): AppResult<List<PendingDriver>>
     suspend fun verifyDriver(driverId: Long): AppResult<Unit>

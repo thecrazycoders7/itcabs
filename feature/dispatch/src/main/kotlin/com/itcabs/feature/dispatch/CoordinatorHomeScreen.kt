@@ -62,6 +62,7 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
     var editLeg by remember { mutableStateOf<Leg?>(null) }
     var assignLeg by remember { mutableStateOf<Leg?>(null) }
     var mapLeg by remember { mutableStateOf<Leg?>(null) }
+    var driverProfileId by remember { mutableStateOf<Long?>(null) }
     var showTemplates by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -98,6 +99,7 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onExport = { shareCsv(context, state.legs) },
         onTemplates = { showTemplates = true; viewModel.loadTemplates() },
         onMap = { mapLeg = it },
+        onDriverProfile = { leg -> leg.claimedBy?.let { driverProfileId = it } },
     )
 
     ratingLegId?.let { id ->
@@ -109,6 +111,7 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
     assignLeg?.let { leg ->
         AssignDialog(state.verifiedDrivers, onDismiss = { assignLeg = null }, onPick = { driverId -> viewModel.assign(leg.id, driverId); assignLeg = null })
     }
+    driverProfileId?.let { DriverProfileDialog(it, onDismiss = { driverProfileId = null }) }
     if (showTemplates) {
         TemplatesDialog(
             templates = state.templates,
@@ -139,6 +142,7 @@ fun CoordinatorHomeContent(
     onExport: () -> Unit = {},
     onTemplates: () -> Unit = {},
     onMap: (Leg) -> Unit = {},
+    onDriverProfile: (Leg) -> Unit = {},
 ) {
     val outstanding = state.legs.filter { it.status == LegStatus.COMPLETED && !it.paid }.sumOf { it.farePaise }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -207,7 +211,7 @@ fun CoordinatorHomeContent(
                         onRepost = { onRepost(leg.jobId) }, onChat = { onChat(leg.id) },
                         onNoShow = { onNoShow(leg.id) }, onMarkPaid = { onMarkPaid(leg.id) },
                         onEdit = { onEdit(leg) }, onAssign = { onAssign(leg) },
-                        onMap = { onMap(leg) },
+                        onMap = { onMap(leg) }, onDriverProfile = { onDriverProfile(leg) },
                     )
                 }
             }
@@ -229,6 +233,7 @@ private fun CoordinatorLegCard(
     onEdit: () -> Unit,
     onAssign: () -> Unit,
     onMap: () -> Unit,
+    onDriverProfile: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
@@ -249,7 +254,10 @@ private fun CoordinatorLegCard(
         }
 
         if (leg.claimedByName != null) {
-            Text("Driver: ${leg.claimedByName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.secondary)
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Driver: ${leg.claimedByName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.secondary)
+                TextButton(onClick = onDriverProfile) { Text("View profile") }
+            }
             when (leg.tripStage) {
                 "EN_ROUTE" -> "On the way to pickup"
                 "ARRIVED" -> "Arrived at pickup"

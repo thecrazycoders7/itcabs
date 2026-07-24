@@ -145,8 +145,15 @@ private fun MyCompanyTripCard(job: CompanyJob, onMap: () -> Unit, onConfirm: (Jo
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), Arrangement.End, Alignment.CenterVertically) {
             TextButton(onClick = onMap) { Icon(Icons.Filled.Map, null, Modifier.size(16.dp)); Text(" Map") }
+            if (active) {
+                val context = LocalContext.current
+                // Turn-by-turn through every stop in order, starting from the driver's current location.
+                Button(onClick = { navigateRoute(context, job) }, enabled = job.stops.any { it.lat != null }, shape = MaterialTheme.shapes.small) {
+                    Icon(Icons.Filled.Navigation, null, Modifier.size(16.dp)); Text(" Navigate route")
+                }
+            }
         }
     }
 }
@@ -164,4 +171,18 @@ private fun navigateTo(context: android.content.Context, stop: JobStop) {
     val uri = if (stop.lat != null && stop.lng != null) "geo:${stop.lat},${stop.lng}?q=${stop.lat},${stop.lng}(${Uri.encode(stop.employeeName)})"
     else "geo:0,0?q=${Uri.encode(stop.address.ifBlank { stop.employeeName })}"
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
+}
+
+/**
+ * Launch Google Maps turn-by-turn through all located stops in order. Origin is omitted so Maps
+ * starts from the driver's current location; waypoints are visited in the given (optimized) order.
+ */
+private fun navigateRoute(context: android.content.Context, job: CompanyJob) {
+    val pts = job.stops.filter { it.lat != null && it.lng != null }.map { "${it.lat},${it.lng}" }
+    if (pts.isEmpty()) return
+    val destination = pts.last()
+    val waypoints = pts.dropLast(1).joinToString("|")
+    val url = StringBuilder("https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=$destination")
+    if (waypoints.isNotBlank()) url.append("&waypoints=${Uri.encode(waypoints)}")
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url.toString())))
 }
