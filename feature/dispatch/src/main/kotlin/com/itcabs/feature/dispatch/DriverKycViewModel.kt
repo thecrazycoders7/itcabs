@@ -48,12 +48,17 @@ data class DriverKycUiState(
     val aadhaar: String = "",
     val rcNumber: String = "",
     val docs: Map<String, DocUi> = KYC_DOC_DEFS.associate { it.type to DocUi() },
+    val kycStatus: com.itcabs.domain.model.KycStatus = com.itcabs.domain.model.KycStatus.NONE,
+    val rejectionReason: String? = null,
     val loading: Boolean = false,
     val error: String? = null,
     val submitted: Boolean = false,
 ) {
+    val uploadedCount: Int
+        get() = KYC_DOC_DEFS.count { docs[it.type]?.status == DocStatus.UPLOADED }
+
     val allDocsUploaded: Boolean
-        get() = KYC_DOC_DEFS.all { docs[it.type]?.status == DocStatus.UPLOADED }
+        get() = uploadedCount == KYC_DOC_DEFS.size
 
     // Phone verified + all documents uploaded + vehicle/identity fields (spec).
     val canSubmit: Boolean
@@ -74,7 +79,12 @@ class DriverKycViewModel @Inject constructor(
         // Reflect any already-verified phone so the badge shows on return.
         viewModelScope.launch {
             (driver.myProfile() as? AppResult.Ok)?.value?.let { p ->
-                _state.update { it.copy(phone = p.phone ?: it.phone, phoneVerified = p.phoneVerified) }
+                _state.update {
+                    it.copy(
+                        phone = p.phone ?: it.phone, phoneVerified = p.phoneVerified,
+                        kycStatus = p.kycStatus, rejectionReason = p.rejectionReason,
+                    )
+                }
             }
         }
         // Reflect already-uploaded docs (and any admin re-upload requests) so returning drivers resume.
@@ -153,7 +163,10 @@ class DriverKycViewModel @Inject constructor(
                     photoUrl = "",
                 )
             ) {
-                is AppResult.Ok -> _state.update { it.copy(loading = false, submitted = true) }
+                // Show the "Under Review" screen in place of the form (spec) rather than navigating away.
+                is AppResult.Ok -> _state.update {
+                    it.copy(loading = false, submitted = true, kycStatus = com.itcabs.domain.model.KycStatus.PENDING)
+                }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = r.message) }
             }
         }

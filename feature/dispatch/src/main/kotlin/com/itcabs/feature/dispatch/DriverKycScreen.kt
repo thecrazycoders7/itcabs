@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,7 +61,11 @@ import java.io.File
 fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(state.submitted) { if (state.submitted) onDone() }
+    // Awaiting review → show status, not the form (can't resubmit while PENDING).
+    if (state.kycStatus == com.itcabs.domain.model.KycStatus.PENDING) {
+        UnderReviewView(onDone)
+        return
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -75,6 +80,18 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        // Rejected before → show why so the driver can fix + resubmit.
+        if (state.kycStatus == com.itcabs.domain.model.KycStatus.REJECTED) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.errorContainer).padding(12.dp),
+            ) {
+                Text("Your last submission was rejected", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                Text(state.rejectionReason ?: "Please recheck your documents and resubmit.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }
 
         // 1. Phone verification (Firebase Phone Auth) — required before submitting KYC.
         PhoneVerifySection(state, viewModel)
@@ -96,11 +113,47 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
         )
         DocumentsSection(state, viewModel)
 
+        // Readiness checklist so the driver sees exactly what's left before submit.
+        Divider(Modifier.padding(vertical = 4.dp))
+        CheckLine(state.phoneVerified, "Phone verified")
+        CheckLine(state.allDocsUploaded, "Documents uploaded (${state.uploadedCount}/${KYC_DOC_DEFS.size})")
+        CheckLine(state.vehicleReg.isNotBlank() && state.aadhaar.length >= 4 && state.rcNumber.isNotBlank(), "Vehicle & identity details")
+
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         Button(onClick = viewModel::submit, enabled = state.canSubmit && !state.loading, modifier = Modifier.fillMaxWidth()) {
             if (state.loading) CircularProgressIndicator(Modifier.padding(4.dp), strokeWidth = 2.dp) else Text("Submit for review")
         }
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Status shown after submitting — review is manual (~24h); the form is locked until it resolves. */
+@Composable
+private fun UnderReviewView(onDone: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("⏳", style = MaterialTheme.typography.displayMedium)
+        Text("Under Review", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Thanks — your documents are in. Our team reviews within ~24 hours. " +
+                "You'll be able to claim trips once you're approved.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
+    }
+}
+
+/** One ✓/○ readiness row. */
+@Composable
+private fun CheckLine(done: Boolean, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(if (done) "✓" else "○", color = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.bodyMedium,
+            color = if (done) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
