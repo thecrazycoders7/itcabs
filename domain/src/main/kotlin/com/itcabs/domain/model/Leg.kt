@@ -40,6 +40,9 @@ data class Leg(
 /** A pickable service area (name + centroid) from the backend gazetteer. */
 data class Area(val name: String, val lat: Double, val lng: Double)
 
+/** A driver's latest live position for on-trip tracking; null coords when unknown. */
+data class DriverLocation(val lat: Double?, val lng: Double?, val updatedAt: String?)
+
 /** Coordinator input for posting a job: office + shift + one or more legs. [publishAt] schedules it. */
 data class NewJob(val office: String, val shift: String, val legs: List<NewLeg>, val publishAt: String? = null)
 

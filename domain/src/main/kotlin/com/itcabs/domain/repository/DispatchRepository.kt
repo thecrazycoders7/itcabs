@@ -63,6 +63,10 @@ interface DispatchRepository {
     suspend fun releaseTrip(legId: Long): AppResult<Unit>
     /** Driver marks the trip done after drop-off. */
     suspend fun driverComplete(legId: Long): AppResult<Unit>
+    /** Driver pushes their current location (on-trip live tracking). Fire-and-forget. */
+    suspend fun postLocation(lat: Double, lng: Double): AppResult<Unit>
+    /** Coordinator reads the claimed driver's latest location for a leg. */
+    suspend fun driverLocation(legId: Long): AppResult<com.itcabs.domain.model.DriverLocation>
 
     /** Driver reports live progress; STARTED requires the passenger's pickup [otp]. */
     suspend fun setStage(legId: Long, stage: String, otp: String? = null): AppResult<Unit>

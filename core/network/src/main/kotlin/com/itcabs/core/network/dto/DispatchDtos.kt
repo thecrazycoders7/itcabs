@@ -113,6 +113,13 @@ data class TopDriverDto(val name: String, val trips: Int)
 data class AreaDto(val name: String, val lat: Double, val lng: Double)
 
 @Serializable
+data class LocationDto(val lat: Double, val lng: Double)
+
+/** GET /legs/{id}/driver-location — the claimed driver's latest point (empty object when none). */
+@Serializable
+data class DriverLocationDto(val lat: Double? = null, val lng: Double? = null, val updatedAt: String? = null)
+
+@Serializable
 data class StatusUpdateDto(val status: String)
 
 @Serializable

@@ -43,6 +43,8 @@ android {
             "MAPS_API_KEY",
             "\"${(findProperty("itcabs.mapsApiKey") as String?) ?: ""}\"",
         )
+        // Same key for the Maps SDK manifest meta-data (never committed; supplied at build time).
+        manifestPlaceholders["MAPS_API_KEY"] = (findProperty("itcabs.mapsApiKey") as String?) ?: ""
     }
     buildFeatures {
         compose = true

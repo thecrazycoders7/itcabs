@@ -80,6 +80,8 @@ class DriverFeedViewModel @Inject constructor(
 
     /** Screen supplies device location (coarse is fine — relevance is area-level). */
     fun onLocation(latitude: Double, longitude: Double) {
+        // Push location for on-trip tracking (fire-and-forget) even if it hasn't moved enough to refresh.
+        viewModelScope.launch { dispatch.postLocation(latitude, longitude) }
         if (lat == latitude && lng == longitude) return
         lat = latitude; lng = longitude
         refresh()

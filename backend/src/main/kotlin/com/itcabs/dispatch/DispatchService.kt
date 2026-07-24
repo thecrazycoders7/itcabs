@@ -213,6 +213,27 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         )
     }
 
+    /** Store the driver's latest location (on-trip tracking). Latest point only, no history. */
+    @Transactional
+    fun updateLocation(driverId: Long, lat: Double, lng: Double) {
+        db.update(
+            "UPDATE driver_profiles SET last_lat=:lat, last_lng=:lng, last_loc_at=now() WHERE user_id=:d",
+            MapSqlParameterSource().addValue("lat", lat).addValue("lng", lng).addValue("d", driverId),
+        )
+    }
+
+    /** The claimed driver's latest location for a coordinator's leg (null if none/too old handled client-side). */
+    fun driverLocation(coordinatorId: Long, legId: Long): Map<String, Any?>? {
+        val row = db.queryForList(
+            """SELECT p.last_lat, p.last_lng, p.last_loc_at
+                 FROM legs l JOIN driver_profiles p ON p.user_id = l.claimed_by
+                WHERE l.id=:id AND l.coordinator_id=:c""",
+            MapSqlParameterSource().addValue("id", legId).addValue("c", coordinatorId),
+        ).firstOrNull() ?: return null
+        val lat = row["last_lat"] ?: return null
+        return mapOf("lat" to lat, "lng" to row["last_lng"], "updatedAt" to row["last_loc_at"]?.toString())
+    }
+
     /** Toggle whether this driver receives new-trip pushes. */
     @Transactional
     fun setAvailability(driverId: Long, available: Boolean) {

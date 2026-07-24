@@ -128,6 +128,18 @@ class DispatchController(
         return mapOf("available" to body.available)
     }
 
+    /** Driver pushes their current location (on-trip live tracking). */
+    @PostMapping("/driver/location")
+    fun postLocation(req: HttpServletRequest, @RequestBody body: LocationInput): Map<String, Any> {
+        dispatch.updateLocation(requireUserId(req), body.lat, body.lng)
+        return mapOf("ok" to true)
+    }
+
+    /** Coordinator reads the claimed driver's latest location for their leg (for the live map). */
+    @GetMapping("/legs/{id}/driver-location")
+    fun driverLocation(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any?> =
+        dispatch.driverLocation(requireUserId(req), id) ?: emptyMap()
+
     /** Pickable areas (name + centroid) for job posting and filters. */
     @GetMapping("/areas")
     fun areas() = dispatch.areas()

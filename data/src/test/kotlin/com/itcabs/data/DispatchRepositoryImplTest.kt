@@ -9,6 +9,8 @@ import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
 import com.itcabs.core.network.dto.AreaDto
 import com.itcabs.core.network.dto.CoordinatorStatsDto
+import com.itcabs.core.network.dto.DriverLocationDto
+import com.itcabs.core.network.dto.LocationDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
@@ -65,6 +67,8 @@ private class FakeDispatchApi(
     override suspend fun upcoming(lat: Double?, lng: Double?) = feedResponse
     override suspend fun release(id: Long) = Response.success(Unit)
     override suspend fun driverComplete(id: Long) = Response.success(Unit)
+    override suspend fun postDriverLocation(body: LocationDto) = Response.success(mapOf("ok" to true))
+    override suspend fun driverLocation(id: Long) = Response.success(DriverLocationDto())
     override suspend fun myClaims() = feedResponse
 }
 

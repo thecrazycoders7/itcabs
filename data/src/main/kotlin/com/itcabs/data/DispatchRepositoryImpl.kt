@@ -8,6 +8,7 @@ import com.itcabs.core.network.RealtimeClient
 import com.itcabs.core.network.dto.AssignDto
 import com.itcabs.core.network.dto.EditLegDto
 import com.itcabs.core.network.dto.LegDto
+import com.itcabs.core.network.dto.LocationDto
 import com.itcabs.core.network.dto.RatingDto
 import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
@@ -153,6 +154,12 @@ class DispatchRepositoryImpl(
 
     override suspend fun driverComplete(legId: Long): AppResult<Unit> =
         api.driverComplete(legId).asResult { }
+
+    override suspend fun postLocation(lat: Double, lng: Double): AppResult<Unit> =
+        api.postDriverLocation(LocationDto(lat, lng)).asResult { }
+
+    override suspend fun driverLocation(legId: Long): AppResult<com.itcabs.domain.model.DriverLocation> =
+        api.driverLocation(legId).asResult { com.itcabs.domain.model.DriverLocation(it.lat, it.lng, it.updatedAt) }
 
     override suspend fun myClaims(): AppResult<List<Leg>> =
         api.myClaims().asResult { dtos ->

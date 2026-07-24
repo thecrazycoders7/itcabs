@@ -3,7 +3,9 @@ package com.itcabs.core.network
 import com.itcabs.core.network.dto.AreaDto
 import com.itcabs.core.network.dto.AssignDto
 import com.itcabs.core.network.dto.CoordinatorStatsDto
+import com.itcabs.core.network.dto.DriverLocationDto
 import com.itcabs.core.network.dto.EditLegDto
+import com.itcabs.core.network.dto.LocationDto
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.PostJobDto
 import com.itcabs.core.network.dto.RatingDto
@@ -96,4 +98,10 @@ interface DispatchApi {
 
     @POST("api/v1/legs/{id}/complete")
     suspend fun driverComplete(@Path("id") id: Long): Response<Unit>
+
+    @POST("api/v1/driver/location")
+    suspend fun postDriverLocation(@Body body: LocationDto): Response<Map<String, Boolean>>
+
+    @GET("api/v1/legs/{id}/driver-location")
+    suspend fun driverLocation(@Path("id") id: Long): Response<DriverLocationDto>
 }

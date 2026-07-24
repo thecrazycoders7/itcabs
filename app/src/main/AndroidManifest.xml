@@ -14,6 +14,10 @@
         android:label="IT Cars"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.ItCabs">
+        <!-- Google Maps SDK key — value injected from the itcabs.mapsApiKey build arg, never committed. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
         <!-- usesCleartextTraffic is for the dev backend over http (10.0.2.2:8081).
              Remove it (or scope via a network-security-config) once the API is https. -->
         <activity
