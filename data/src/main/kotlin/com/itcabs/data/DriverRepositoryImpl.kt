@@ -10,7 +10,10 @@ import com.itcabs.domain.model.KycStatus
 import com.itcabs.domain.model.PendingDriver
 import com.itcabs.domain.repository.DriverRepository
 
-class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
+class DriverRepositoryImpl(
+    private val api: DriverApi,
+    private val storage: SupabaseStorage,
+) : DriverRepository {
     override suspend fun submitKyc(
         vehicleType: String,
         vehicleReg: String,
@@ -43,6 +46,19 @@ class DriverRepositoryImpl(private val api: DriverApi) : DriverRepository {
 
     override suspend fun verifyPhone(idToken: String): AppResult<Unit> =
         api.verifyPhone(com.itcabs.core.network.dto.PhoneVerifyDto(idToken)).asResult { }
+
+    override suspend fun uploadKycDoc(docType: String, jpeg: ByteArray): AppResult<Unit> =
+        when (val up = storage.upload("$docType.jpg", jpeg)) {
+            is AppResult.Ok -> api.registerKycDoc(
+                com.itcabs.core.network.dto.KycDocInputDto(docType, up.value)
+            ).asResult { }
+            is AppResult.Err -> up
+        }
+
+    override suspend fun myKycDocs(): AppResult<List<com.itcabs.domain.model.KycDoc>> =
+        api.myKycDocs().asResult { list ->
+            list.map { com.itcabs.domain.model.KycDoc(it.docType, it.storagePath, it.status, it.rejectReason) }
+        }
 
     override suspend fun publicProfile(driverId: Long): AppResult<com.itcabs.domain.model.PublicDriverProfile> =
         api.publicProfile(driverId).asResult { d ->

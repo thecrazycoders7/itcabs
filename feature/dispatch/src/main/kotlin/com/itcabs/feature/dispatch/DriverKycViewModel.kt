@@ -12,6 +12,31 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** One document slot: the label the driver sees + its upload/review state. */
+data class KycDocDef(val type: String, val label: String)
+
+/** The documents every corporate driver uploads (mirrors REQUIRED_KYC_DOCS on the backend). */
+val KYC_DOC_DEFS = listOf(
+    KycDocDef("DL_FRONT", "Driving licence — front"),
+    KycDocDef("DL_BACK", "Driving licence — back"),
+    KycDocDef("AADHAAR_FRONT", "Aadhaar — front"),
+    KycDocDef("AADHAAR_BACK", "Aadhaar — back"),
+    KycDocDef("RC_FRONT", "Vehicle RC — front"),
+    KycDocDef("RC_BACK", "Vehicle RC — back"),
+    KycDocDef("PERMIT", "Permit"),
+    KycDocDef("INSURANCE", "Insurance"),
+    KycDocDef("FITNESS", "Fitness certificate"),
+)
+
+enum class DocStatus { MISSING, UPLOADING, UPLOADED, REUPLOAD }
+
+/** Per-document UI state (keyed by docType in the map). */
+data class DocUi(
+    val status: DocStatus = DocStatus.MISSING,
+    val error: String? = null,
+    val rejectReason: String? = null,
+)
+
 data class DriverKycUiState(
     val phone: String = "",
     val phoneVerified: Boolean = false,
@@ -22,13 +47,18 @@ data class DriverKycUiState(
     val vehicleReg: String = "",
     val aadhaar: String = "",
     val rcNumber: String = "",
+    val docs: Map<String, DocUi> = KYC_DOC_DEFS.associate { it.type to DocUi() },
     val loading: Boolean = false,
     val error: String? = null,
     val submitted: Boolean = false,
 ) {
-    // Phone must be verified before KYC can be submitted (spec).
+    val allDocsUploaded: Boolean
+        get() = KYC_DOC_DEFS.all { docs[it.type]?.status == DocStatus.UPLOADED }
+
+    // Phone verified + all documents uploaded + vehicle/identity fields (spec).
     val canSubmit: Boolean
-        get() = phoneVerified && vehicleType.isNotBlank() && vehicleReg.isNotBlank() && aadhaar.length >= 4 && rcNumber.isNotBlank()
+        get() = phoneVerified && allDocsUploaded &&
+            vehicleType.isNotBlank() && vehicleReg.isNotBlank() && aadhaar.length >= 4 && rcNumber.isNotBlank()
 }
 
 /** Lets a driver complete/submit KYC from their home when onboarding didn't capture it. */
@@ -45,6 +75,36 @@ class DriverKycViewModel @Inject constructor(
         viewModelScope.launch {
             (driver.myProfile() as? AppResult.Ok)?.value?.let { p ->
                 _state.update { it.copy(phone = p.phone ?: it.phone, phoneVerified = p.phoneVerified) }
+            }
+        }
+        // Reflect already-uploaded docs (and any admin re-upload requests) so returning drivers resume.
+        viewModelScope.launch {
+            (driver.myKycDocs() as? AppResult.Ok)?.value?.let { docs ->
+                _state.update { s ->
+                    s.copy(docs = s.docs.mapValues { (type, ui) ->
+                        docs.firstOrNull { it.docType == type }?.let {
+                            val reupload = it.status == "REUPLOAD_REQUESTED"
+                            ui.copy(status = if (reupload) DocStatus.REUPLOAD else DocStatus.UPLOADED, rejectReason = it.rejectReason)
+                        } ?: ui
+                    })
+                }
+            }
+        }
+    }
+
+    private fun setDoc(type: String, ui: DocUi) =
+        _state.update { it.copy(docs = it.docs + (type to ui)) }
+
+    /** Surface a client-side error (e.g. the image couldn't be read) on one document slot. */
+    fun docError(type: String, msg: String) = setDoc(type, DocUi(DocStatus.MISSING, error = msg))
+
+    /** Upload compressed JPEG bytes for one document; overwrites any prior upload (replace). */
+    fun uploadDoc(type: String, jpeg: ByteArray) {
+        setDoc(type, DocUi(DocStatus.UPLOADING))
+        viewModelScope.launch {
+            when (val r = driver.uploadKycDoc(type, jpeg)) {
+                is AppResult.Ok -> setDoc(type, DocUi(DocStatus.UPLOADED))
+                is AppResult.Err -> setDoc(type, DocUi(DocStatus.MISSING, error = r.message))
             }
         }
     }
@@ -74,7 +134,12 @@ class DriverKycViewModel @Inject constructor(
     fun submit() {
         val s = _state.value
         if (!s.canSubmit) {
-            _state.update { it.copy(error = "Fill vehicle, registration, Aadhaar, and RC.") }
+            val msg = when {
+                !s.phoneVerified -> "Verify your phone first."
+                !s.allDocsUploaded -> "Upload all documents first."
+                else -> "Fill vehicle, registration, Aadhaar, and RC."
+            }
+            _state.update { it.copy(error = msg) }
             return
         }
         _state.update { it.copy(loading = true, error = null) }

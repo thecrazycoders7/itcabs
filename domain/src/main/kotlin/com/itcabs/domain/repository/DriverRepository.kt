@@ -23,6 +23,12 @@ interface DriverRepository {
     /** Submit a Firebase phone-auth ID token; backend verifies + marks the number verified. */
     suspend fun verifyPhone(idToken: String): AppResult<Unit>
 
+    /** Upload one KYC document (jpeg bytes) to private storage and register it for review. */
+    suspend fun uploadKycDoc(docType: String, jpeg: ByteArray): AppResult<Unit>
+
+    /** The driver's uploaded documents + per-doc review state. */
+    suspend fun myKycDocs(): AppResult<List<com.itcabs.domain.model.KycDoc>>
+
     /** A driver's public profile (for the coordinator once the driver is on their job). */
     suspend fun publicProfile(driverId: Long): AppResult<com.itcabs.domain.model.PublicDriverProfile>
 

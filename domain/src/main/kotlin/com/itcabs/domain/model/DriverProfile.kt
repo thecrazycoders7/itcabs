@@ -17,6 +17,14 @@ data class DriverProfile(
     val phoneVerified: Boolean = false,
 )
 
+/** One uploaded KYC document + its review state. status: UPLOADED / REUPLOAD_REQUESTED. */
+data class KycDoc(
+    val docType: String,
+    val storagePath: String,
+    val status: String = "UPLOADED",
+    val rejectReason: String? = null,
+)
+
 /** A driver's public profile shown to the coordinator once the driver is on their job. */
 data class PublicDriverProfile(
     val id: Long,

@@ -37,6 +37,14 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
             "SELECT kyc_status FROM driver_profiles WHERE user_id = :u", MapSqlParameterSource("u", uid),
         ).firstOrNull()?.get("kyc_status")
         if (pending == "PENDING") throw com.itcabs.shared.badRequest("your KYC is already under review")
+        // All required documents must be uploaded before review.
+        val have = db.queryForList(
+            "SELECT doc_type FROM kyc_documents WHERE user_id = :u", MapSqlParameterSource("u", uid),
+        ).map { it["doc_type"] as String }.toSet()
+        val missing = REQUIRED_KYC_DOCS.filter { it !in have }
+        if (missing.isNotEmpty()) throw com.itcabs.shared.badRequest(
+            "upload all documents first (missing: ${missing.joinToString(", ")})",
+        )
         db.update(
             """INSERT INTO driver_profiles(user_id, vehicle_type, vehicle_reg, aadhaar_ref,
                                            aadhaar_masked, rc_number_masked, photo_url, kyc_status)

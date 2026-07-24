@@ -25,6 +25,12 @@ interface DriverApi {
     @POST("api/v1/driver/verify-phone")
     suspend fun verifyPhone(@Body body: com.itcabs.core.network.dto.PhoneVerifyDto): Response<Map<String, @JvmSuppressWildcards Any?>>
 
+    @POST("api/v1/driver/kyc/documents")
+    suspend fun registerKycDoc(@Body body: com.itcabs.core.network.dto.KycDocInputDto): Response<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("api/v1/driver/kyc/documents")
+    suspend fun myKycDocs(): Response<List<com.itcabs.core.network.dto.KycDocDto>>
+
     @GET("api/v1/drivers/{id}/profile")
     suspend fun publicProfile(@Path("id") id: Long): Response<DriverPublicDto>
 

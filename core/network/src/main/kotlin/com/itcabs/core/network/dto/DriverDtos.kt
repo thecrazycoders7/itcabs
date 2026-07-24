@@ -22,6 +22,19 @@ data class DriverProfileDto(
 @Serializable
 data class PhoneVerifyDto(val idToken: String)
 
+/** Register one uploaded KYC document (object already in the private bucket). */
+@Serializable
+data class KycDocInputDto(val docType: String, val storagePath: String)
+
+/** GET /driver/kyc/documents — one uploaded doc + its review state. */
+@Serializable
+data class KycDocDto(
+    @SerialName("doc_type") val docType: String,
+    @SerialName("storage_path") val storagePath: String,
+    val status: String = "UPLOADED",
+    @SerialName("reject_reason") val rejectReason: String? = null,
+)
+
 @Serializable
 data class AvailabilityDto(val available: Boolean)
 

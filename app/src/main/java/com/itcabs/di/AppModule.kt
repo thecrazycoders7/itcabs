@@ -79,8 +79,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun driverRepository(api: DriverApi): DriverRepository =
-        DriverRepositoryImpl(api)
+    fun supabaseStorage(tokenStore: TokenStore): com.itcabs.data.SupabaseStorage =
+        com.itcabs.data.SupabaseStorage(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore)
+
+    @Provides
+    @Singleton
+    fun driverRepository(api: DriverApi, storage: com.itcabs.data.SupabaseStorage): DriverRepository =
+        DriverRepositoryImpl(api, storage)
 
     @Provides
     @Singleton
