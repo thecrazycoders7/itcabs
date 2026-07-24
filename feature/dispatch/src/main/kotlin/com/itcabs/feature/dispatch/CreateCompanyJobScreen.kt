@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -135,8 +136,16 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, viewModel: CompanyJobViewModel = 
 
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text("Employees / Stops", style = MaterialTheme.typography.titleLarge)
-            OutlinedButton(onClick = { stops = stops + StopForm() }, shape = MaterialTheme.shapes.small) {
-                Icon(Icons.Filled.Add, null, Modifier.height(18.dp)); Text("Add")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Reorder stops for a shorter route (nearest-neighbour on the picked coordinates).
+                OutlinedButton(
+                    onClick = { stops = optimizeStops(stops) },
+                    enabled = stops.count { it.lat != null && it.lng != null } >= 3,
+                    shape = MaterialTheme.shapes.small,
+                ) { Icon(Icons.Filled.Route, null, Modifier.height(18.dp)); Text("Optimize") }
+                OutlinedButton(onClick = { stops = stops + StopForm() }, shape = MaterialTheme.shapes.small) {
+                    Icon(Icons.Filled.Add, null, Modifier.height(18.dp)); Text("Add")
+                }
             }
         }
         Text(
@@ -203,6 +212,33 @@ private fun StopCard(
         }
         LblField("Phone (optional)", stop.phone, { onChange(stop.copy(phone = it)) }, "10-digit")
     }
+}
+
+/**
+ * Nearest-neighbour reorder from the first stop — a short (not provably optimal) route for a handful
+ * of city stops, using the Places coordinates. Stops without coords keep their tail position.
+ * ponytail: greedy NN is plenty for ~3–8 stops; road-optimal needs the Directions API + a server key.
+ */
+private fun optimizeStops(stops: List<StopForm>): List<StopForm> {
+    val located = stops.filter { it.lat != null && it.lng != null }.toMutableList()
+    val rest = stops.filter { it.lat == null || it.lng == null }
+    if (located.size < 3) return stops
+    val ordered = mutableListOf(located.removeAt(0))
+    while (located.isNotEmpty()) {
+        val last = ordered.last()
+        val next = located.minByOrNull { stopKm(last, it) }!!
+        located.remove(next); ordered.add(next)
+    }
+    return ordered + rest
+}
+
+private fun stopKm(a: StopForm, b: StopForm): Double {
+    val r = 6371.0
+    val dLat = Math.toRadians(b.lat!! - a.lat!!)
+    val dLon = Math.toRadians(b.lng!! - a.lng!!)
+    val h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(Math.toRadians(a.lat)) * Math.cos(Math.toRadians(b.lat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    return r * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
 @Composable
