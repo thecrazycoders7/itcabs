@@ -112,10 +112,16 @@ class DriverKycViewModel @Inject constructor(
     fun uploadDoc(type: String, jpeg: ByteArray) {
         setDoc(type, DocUi(DocStatus.UPLOADING))
         viewModelScope.launch {
-            when (val r = driver.uploadKycDoc(type, jpeg)) {
-                is AppResult.Ok -> setDoc(type, DocUi(DocStatus.UPLOADED))
-                is AppResult.Err -> setDoc(type, DocUi(DocStatus.MISSING, error = r.message))
-            }
+            // Catch here too: a thrown error (not an Err result) would otherwise leave the tile stuck
+            // on "Uploading…" with no reason shown.
+            runCatching { driver.uploadKycDoc(type, jpeg) }
+                .onSuccess { r ->
+                    when (r) {
+                        is AppResult.Ok -> setDoc(type, DocUi(DocStatus.UPLOADED))
+                        is AppResult.Err -> setDoc(type, DocUi(DocStatus.MISSING, error = r.message))
+                    }
+                }
+                .onFailure { setDoc(type, DocUi(DocStatus.MISSING, error = it.message ?: "Upload failed")) }
         }
     }
 

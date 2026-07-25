@@ -3,6 +3,7 @@ package com.itcabs
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -153,6 +154,8 @@ private fun RoleHome(role: UserRole, isAdmin: Boolean, route: String?, onSignOut
 @Composable
 private fun CoordinatorHome(isAdmin: Boolean, startTab: Int = 0, onSignOut: () -> Unit) {
     var tab by remember { mutableIntStateOf(startTab) }
+    // Back from a non-first tab returns to the first tab instead of exiting the app.
+    BackHandler(enabled = tab != 0) { tab = 0 }
     val title = when (tab) {
         0 -> "IT Cars Dispatch"
         1 -> "Company Jobs"
@@ -211,6 +214,8 @@ private fun CoordinatorHome(isAdmin: Boolean, startTab: Int = 0, onSignOut: () -
 @Composable
 private fun DriverHome(startTab: Int = 0, onSignOut: () -> Unit) {
     var tab by remember { mutableIntStateOf(startTab) }
+    // Back from a non-first tab returns to the first tab instead of exiting the app.
+    BackHandler(enabled = tab != 0) { tab = 0 }
     val title = when (tab) {
         0 -> "Available Trips"
         1 -> "My Trips"
