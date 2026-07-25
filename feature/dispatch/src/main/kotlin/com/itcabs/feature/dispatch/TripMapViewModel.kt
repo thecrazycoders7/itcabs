@@ -1,7 +1,6 @@
 package com.itcabs.feature.dispatch
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.repository.DispatchRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -33,28 +31,25 @@ class TripMapViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(TripMapUiState())
     val state: StateFlow<TripMapUiState> = _state.asStateFlow()
-    private var started = false
 
-    /** Call once with the leg + its pickup area name. Loads the pin, then polls the driver every 5s. */
-    fun start(legId: Long, area: String) {
-        if (started) return
-        started = true
-        viewModelScope.launch {
-            (dispatch.areas() as? AppResult.Ok)?.value
-                ?.firstOrNull { it.name.equals(area, ignoreCase = true) }
-                ?.let { _state.update { s -> s.copy(pickup = LatLngUi(it.lat, it.lng)) } }
-        }
-        viewModelScope.launch {
-            while (true) {
-                (dispatch.driverLocation(legId) as? AppResult.Ok)?.value?.let { loc ->
-                    val lat = loc.lat; val lng = loc.lng
-                    if (lat != null && lng != null) {
-                        _state.update { it.copy(driver = LatLngUi(lat, lng)) }
-                        recomputeEta()
-                    }
+    /**
+     * Loads the pickup pin, then polls the driver every 5s. Runs in the CALLER's coroutine (the
+     * screen's LaunchedEffect) so polling stops the moment the map leaves the screen — this VM is
+     * Activity-scoped (no NavHost), so a self-launched loop would otherwise poll the whole session.
+     */
+    suspend fun start(legId: Long, area: String) {
+        (dispatch.areas() as? AppResult.Ok)?.value
+            ?.firstOrNull { it.name.equals(area, ignoreCase = true) }
+            ?.let { a -> _state.update { s -> s.copy(pickup = LatLngUi(a.lat, a.lng)) } }
+        while (true) {
+            (dispatch.driverLocation(legId) as? AppResult.Ok)?.value?.let { loc ->
+                val lat = loc.lat; val lng = loc.lng
+                if (lat != null && lng != null) {
+                    _state.update { it.copy(driver = LatLngUi(lat, lng)) }
+                    recomputeEta()
                 }
-                delay(5_000)
             }
+            delay(5_000)
         }
     }
 
