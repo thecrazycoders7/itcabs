@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.UserRole
 import com.itcabs.domain.repository.AuthRepository
-import com.itcabs.domain.repository.DriverRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** UI state for the Supabase auth flow: sign in → (first time) pick role → (driver) KYC. */
+/** UI state for the Supabase auth flow: sign in → (first time) pick a role → into the app. */
 data class AuthUiState(
     val email: String = "",
     val password: String = "",
@@ -25,19 +24,13 @@ data class AuthUiState(
     val error: String? = null,
     val signedIn: Boolean = false,
     val signedInRole: UserRole? = null,
-    // KYC (drivers)
-    val vehicleType: String = "",
-    val vehicleReg: String = "",
-    val aadhaar: String = "",
-    val rcNumber: String = "",
 ) {
-    enum class Step { SignIn, Onboard, Kyc }
+    enum class Step { SignIn, Onboard }
 }
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val auth: AuthRepository,
-    private val driver: DriverRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthUiState())
@@ -52,10 +45,6 @@ class AuthViewModel @Inject constructor(
     fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null) }
     fun onNameChange(v: String) = _state.update { it.copy(name = v) }
     fun onRoleChange(r: UserRole) = _state.update { it.copy(role = r) }
-    fun onVehicleTypeChange(v: String) = _state.update { it.copy(vehicleType = v) }
-    fun onVehicleRegChange(v: String) = _state.update { it.copy(vehicleReg = v) }
-    fun onAadhaarChange(v: String) = _state.update { it.copy(aadhaar = v) }
-    fun onRcNumberChange(v: String) = _state.update { it.copy(rcNumber = v) }
 
     /** [idToken] comes from Credential Manager (Google). */
     fun signInWithGoogle(idToken: String) = launchLoading {
@@ -94,29 +83,11 @@ class AuthViewModel @Inject constructor(
 
     fun onboard() = launchLoading {
         val s = _state.value
+        // Onboarding just assigns the role and drops the user into the app. Drivers land with
+        // kycStatus=NONE and complete the real KYC (phone OTP + documents) from DriverKycScreen —
+        // the backend's /driver/kyc requires phone-verified + all documents, which onboarding lacks.
         when (val r = auth.onboard(s.role, s.name.ifBlank { null })) {
-            is AppResult.Ok ->
-                if (s.role == UserRole.DRIVER) {
-                    _state.update { it.copy(loading = false, step = AuthUiState.Step.Kyc, signedInRole = UserRole.DRIVER) }
-                } else {
-                    _state.update { it.copy(loading = false, signedIn = true, signedInRole = UserRole.COORDINATOR) }
-                }
-            is AppResult.Err -> fail(r.message)
-        }
-    }
-
-    fun submitKyc() = launchLoading {
-        val s = _state.value
-        when (
-            val r = driver.submitKyc(
-                s.vehicleType, s.vehicleReg,
-                aadhaarRef = "REF_" + s.aadhaar,
-                aadhaarMasked = "********" + s.aadhaar.takeLast(4),
-                rcNumberMasked = "********" + s.rcNumber.takeLast(4),
-                photoUrl = "",
-            )
-        ) {
-            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true, signedInRole = UserRole.DRIVER) }
+            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true, signedInRole = s.role) }
             is AppResult.Err -> fail(r.message)
         }
     }

@@ -86,7 +86,6 @@ fun AuthScreen(
         when (state.step) {
             AuthUiState.Step.SignIn -> SignIn(state, viewModel, ::googleSignIn)
             AuthUiState.Step.Onboard -> Onboard(state, viewModel)
-            AuthUiState.Step.Kyc -> Kyc(state, viewModel)
         }
 
         if (state.loading) CircularProgressIndicator()
@@ -127,14 +126,10 @@ private fun Onboard(state: AuthUiState, vm: AuthViewModel) {
         singleLine = true, modifier = Modifier.fillMaxWidth(),
     )
     Button(onClick = vm::onboard, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Continue") }
-}
-
-@Composable
-private fun Kyc(state: AuthUiState, vm: AuthViewModel) {
-    Text("Driver details", style = MaterialTheme.typography.titleMedium)
-    OutlinedTextField(state.vehicleType, vm::onVehicleTypeChange, label = { Text("Vehicle type (Sedan/SUV)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(state.vehicleReg, vm::onVehicleRegChange, label = { Text("Registration number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(state.aadhaar, { vm.onAadhaarChange(it.filter(Char::isDigit)) }, label = { Text("Aadhaar number") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-    OutlinedTextField(state.rcNumber, vm::onRcNumberChange, label = { Text("RC number") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    Button(onClick = vm::submitKyc, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Submit") }
+    if (state.role == UserRole.DRIVER) {
+        Text(
+            "Next you'll verify your phone and upload your documents to start driving.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
