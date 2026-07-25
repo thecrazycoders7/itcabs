@@ -48,4 +48,9 @@ interface DriverRepository {
     suspend fun allDrivers(): AppResult<List<com.itcabs.domain.model.AdminDriver>>
     suspend fun blockUser(userId: Long): AppResult<Unit>
     suspend fun unblockUser(userId: Long): AppResult<Unit>
+
+    // coordinator approval (admin)
+    suspend fun pendingCoordinators(): AppResult<List<com.itcabs.domain.model.PendingCoordinator>>
+    suspend fun approveCoordinator(userId: Long): AppResult<Unit>
+    suspend fun rejectCoordinator(userId: Long, reason: String?): AppResult<Unit>
 }

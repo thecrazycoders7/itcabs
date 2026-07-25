@@ -26,6 +26,10 @@ data class PhoneVerifyDto(val idToken: String)
 @Serializable
 data class KycDocInputDto(val docType: String, val storagePath: String)
 
+/** GET /admin/coordinators/pending — a coordinator awaiting approval. */
+@Serializable
+data class PendingCoordinatorDto(val id: Long, val name: String? = null, val email: String? = null)
+
 /** GET /driver/kyc/documents — one uploaded doc + its review state. */
 @Serializable
 data class KycDocDto(

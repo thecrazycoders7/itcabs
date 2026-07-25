@@ -17,7 +17,11 @@ import javax.inject.Inject
 sealed interface RootState {
     data object Loading : RootState
     data object SignedOut : RootState
-    data class SignedIn(val role: UserRole, val isAdmin: Boolean = false) : RootState
+    data class SignedIn(
+        val role: UserRole,
+        val isAdmin: Boolean = false,
+        val coordinatorPending: Boolean = false,
+    ) : RootState
 }
 
 @HiltViewModel
@@ -37,7 +41,7 @@ class RootViewModel @Inject constructor(
         viewModelScope.launch {
             auth.getUserFlow().collect { user ->
                 if (user != null) {
-                    _state.value = RootState.SignedIn(user.role, user.isAdmin)
+                    _state.value = RootState.SignedIn(user.role, user.isAdmin, user.coordinatorPending)
                 } else if (_state.value is RootState.SignedIn) {
                     _state.value = RootState.SignedOut
                 }
@@ -60,15 +64,16 @@ class RootViewModel @Inject constructor(
     private suspend fun resolve(): RootState {
         if (!auth.hasSession()) return RootState.SignedOut
         return when (val r = auth.currentUser()) {
-            is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role, it.isAdmin) } ?: RootState.SignedOut
+            is AppResult.Ok -> r.value?.let { RootState.SignedIn(it.role, it.isAdmin, it.coordinatorPending) } ?: RootState.SignedOut
             is AppResult.Err ->
                 if (r.code == 401 || r.code == 403) RootState.SignedOut  // real auth failure
                 else auth.getUserFlow().first()                          // transport/5xx: trust the cache
-                    ?.let { RootState.SignedIn(it.role, it.isAdmin) } ?: RootState.SignedOut
+                    ?.let { RootState.SignedIn(it.role, it.isAdmin, it.coordinatorPending) } ?: RootState.SignedOut
         }
     }
 
-    fun onSignedIn(role: UserRole) { _state.value = RootState.SignedIn(role) }
+    // Re-resolve from /me so a freshly onboarded coordinator picks up their PENDING status.
+    fun onSignedIn(role: UserRole) { viewModelScope.launch { _state.value = resolve() } }
 
     fun signOut() {
         // Transition to signed-out immediately: local cleanup (token wipe + Room clear) must never

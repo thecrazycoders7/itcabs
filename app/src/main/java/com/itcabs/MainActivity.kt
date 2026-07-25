@@ -101,7 +101,7 @@ private fun ItCabsApp(root: RootViewModel = hiltViewModel(), route: String? = nu
             )
             is RootState.SignedIn -> {
                 NotificationPermissionGate()
-                RoleHome(role = s.role, isAdmin = s.isAdmin, route = route, onSignOut = { root.signOut() })
+                RoleHome(role = s.role, isAdmin = s.isAdmin, coordinatorPending = s.coordinatorPending, route = route, onSignOut = { root.signOut() })
             }
         }
     }
@@ -142,10 +142,33 @@ private fun LogoTitle(text: String) {
 }
 
 @Composable
-private fun RoleHome(role: UserRole, isAdmin: Boolean, route: String?, onSignOut: () -> Unit) {
+private fun RoleHome(role: UserRole, isAdmin: Boolean, coordinatorPending: Boolean, route: String?, onSignOut: () -> Unit) {
     when (role) {
         UserRole.DRIVER -> DriverHome(startTab = if (route == "driver_company") 2 else 0, onSignOut = onSignOut)
-        UserRole.COORDINATOR -> CoordinatorHome(isAdmin, startTab = if (route == "coordinator_company") 1 else 0, onSignOut = onSignOut)
+        UserRole.COORDINATOR ->
+            if (coordinatorPending) CoordinatorAwaitingScreen(onSignOut)
+            else CoordinatorHome(isAdmin, startTab = if (route == "coordinator_company") 1 else 0, onSignOut = onSignOut)
+    }
+}
+
+/** Shown to a coordinator whose account is awaiting (or was denied) admin approval. */
+@Composable
+private fun CoordinatorAwaitingScreen(onSignOut: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.layout.Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+        ) {
+            Text("⏳", style = MaterialTheme.typography.displayMedium)
+            Text("Awaiting approval", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "Your coordinator account is under review. An admin will approve it shortly — " +
+                    "you'll be able to post trips once you're approved.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onSignOut) { Text("Sign out") }
+        }
     }
 }
 

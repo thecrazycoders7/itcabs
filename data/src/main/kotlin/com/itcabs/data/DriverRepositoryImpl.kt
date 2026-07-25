@@ -107,4 +107,15 @@ class DriverRepositoryImpl(
 
     override suspend fun requestReupload(driverId: Long, docType: String, reason: String?): AppResult<Unit> =
         api.requestReupload(driverId, docType, RejectInputDto(reason)).asResult { }
+
+    override suspend fun pendingCoordinators(): AppResult<List<com.itcabs.domain.model.PendingCoordinator>> =
+        api.pendingCoordinators().asResult { list ->
+            list.map { com.itcabs.domain.model.PendingCoordinator(it.id, it.name ?: "", it.email) }
+        }
+
+    override suspend fun approveCoordinator(userId: Long): AppResult<Unit> =
+        api.approveCoordinator(userId).asResult { }
+
+    override suspend fun rejectCoordinator(userId: Long, reason: String?): AppResult<Unit> =
+        api.rejectCoordinator(userId, RejectInputDto(reason)).asResult { }
 }

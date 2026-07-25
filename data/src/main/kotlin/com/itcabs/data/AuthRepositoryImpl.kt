@@ -58,8 +58,10 @@ class AuthRepositoryImpl(
 
     override suspend fun onboard(role: UserRole, name: String?): AppResult<User> =
         backend.onboard(OnboardInputDto(role.name, name)).asResult { dto ->
-            User(dto.userId, phone = "", role = UserRole.valueOf(dto.role), name = name ?: "", status = UserStatus.ACTIVE)
-                .also { userDao.insertUser(it.toEntity()) }
+            User(
+                dto.userId, phone = "", role = UserRole.valueOf(dto.role), name = name ?: "",
+                status = UserStatus.ACTIVE, coordinatorStatus = dto.coordinatorStatus ?: "APPROVED",
+            ).also { userDao.insertUser(it.toEntity()) }
         }
 
     override suspend fun signOut() {
@@ -75,4 +77,5 @@ private fun MeDto.toUser() = User(
     name = name ?: "",
     status = UserStatus.valueOf(status ?: "ACTIVE"),
     isAdmin = isAdmin,
+    coordinatorStatus = coordinatorStatus ?: "APPROVED",
 )

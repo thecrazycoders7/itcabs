@@ -239,4 +239,40 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         }
         return mapOf("status" to status)
     }
+
+    /** Admin: coordinators awaiting approval — the review queue for the Admin tab. */
+    @GetMapping("/admin/coordinators/pending")
+    fun pendingCoordinators(req: HttpServletRequest): List<Map<String, Any?>> {
+        requireAdmin(req, db)
+        return db.queryForList(
+            """SELECT id, name, email FROM users
+                WHERE role='COORDINATOR' AND coordinator_status='PENDING' AND status<>'BLOCKED'
+                ORDER BY id""",
+            MapSqlParameterSource(),
+        )
+    }
+
+    /** Admin: approve a coordinator so they can start posting trips. */
+    @PostMapping("/admin/coordinators/{id}/approve")
+    fun approveCoordinator(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {
+        requireAdmin(req, db)
+        db.update(
+            "UPDATE users SET coordinator_status='APPROVED' WHERE id=:id AND role='COORDINATOR'",
+            MapSqlParameterSource("id", id),
+        )
+        push.notifyUser(id, "You're approved", "Your coordinator account is active — you can post trips now.")
+        return mapOf("coordinatorStatus" to "APPROVED")
+    }
+
+    /** Admin: reject a coordinator request, with an optional reason. */
+    @PostMapping("/admin/coordinators/{id}/reject")
+    fun rejectCoordinator(req: HttpServletRequest, @PathVariable id: Long, @RequestBody(required = false) body: RejectInput?): Map<String, Any> {
+        requireAdmin(req, db)
+        db.update(
+            "UPDATE users SET coordinator_status='REJECTED' WHERE id=:id AND role='COORDINATOR'",
+            MapSqlParameterSource("id", id),
+        )
+        push.notifyUser(id, "Account not approved", body?.reason?.takeIf { it.isNotBlank() } ?: "Your coordinator request was not approved.")
+        return mapOf("coordinatorStatus" to "REJECTED")
+    }
 }

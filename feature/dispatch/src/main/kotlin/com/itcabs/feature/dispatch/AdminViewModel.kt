@@ -16,6 +16,7 @@ import javax.inject.Inject
 
 data class AdminUiState(
     val pending: List<PendingDriver> = emptyList(),
+    val pendingCoordinators: List<com.itcabs.domain.model.PendingCoordinator> = emptyList(),
     val drivers: List<AdminDriver> = emptyList(),
     val docs: Map<Long, List<com.itcabs.domain.model.KycDoc>> = emptyMap(),
     val openUrl: String? = null,   // one-shot: a freshly signed URL for the screen to open, then consume
@@ -38,12 +39,16 @@ class AdminViewModel @Inject constructor(
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             (drivers.allDrivers() as? AppResult.Ok)?.let { r -> _state.update { it.copy(drivers = r.value) } }
+            (drivers.pendingCoordinators() as? AppResult.Ok)?.let { r -> _state.update { it.copy(pendingCoordinators = r.value) } }
             when (val r = drivers.pendingDrivers()) {
                 is AppResult.Ok -> _state.update { it.copy(loading = false, pending = r.value) }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = r.message) }
             }
         }
     }
+
+    fun approveCoordinator(userId: Long) = act(userId) { drivers.approveCoordinator(it) }
+    fun rejectCoordinator(userId: Long, reason: String?) = act(userId) { drivers.rejectCoordinator(it, reason) }
 
     fun verify(driverId: Long) = act(driverId) { drivers.verifyDriver(it) }
     fun reject(driverId: Long, reason: String?) = act(driverId) { drivers.rejectDriver(it, reason) }

@@ -1,9 +1,11 @@
 package com.itcabs.dispatch
 
+import com.itcabs.identity.requireApprovedCoordinator
 import com.itcabs.identity.requireUserId
 import com.itcabs.push.PushService
 import com.itcabs.realtime.LegWebSocketHandler
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.web.bind.annotation.*
 
 /** Multi-stop corporate jobs (company + ordered employee stops, one driver). Coexists with /legs. */
@@ -13,11 +15,12 @@ class CompanyJobController(
     private val jobs: CompanyJobService,
     private val events: LegWebSocketHandler,
     private val push: PushService,
+    private val db: NamedParameterJdbcTemplate,
 ) {
     // coordinator
     @PostMapping
     fun create(req: HttpServletRequest, @RequestBody body: CompanyJobInput): CompanyJobDto {
-        val job = jobs.create(requireUserId(req), body)
+        val job = jobs.create(requireApprovedCoordinator(req, db), body)
         events.legChanged(job.id)
         push.notifyDriversNewLeg(job.companyName)
         return job

@@ -67,3 +67,17 @@ fun requireAdmin(req: HttpServletRequest, db: NamedParameterJdbcTemplate): Long 
     if (!isAdmin) throw forbidden("admin only")
     return uid
 }
+
+/**
+ * Returns the caller's user id, or throws 403 unless they're an APPROVED coordinator. Gates the
+ * coordinator actions (posting trips) so a pending/rejected coordinator can't dispatch drivers.
+ */
+fun requireApprovedCoordinator(req: HttpServletRequest, db: NamedParameterJdbcTemplate): Long {
+    val uid = requireUserId(req)
+    val status = db.queryForList(
+        "SELECT coordinator_status FROM users WHERE id = :id",
+        MapSqlParameterSource("id", uid),
+    ).firstOrNull()?.get("coordinator_status") as? String
+    if (status != "APPROVED") throw forbidden("your coordinator account is awaiting approval")
+    return uid
+}

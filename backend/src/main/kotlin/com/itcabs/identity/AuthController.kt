@@ -23,7 +23,7 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         requireAuthId(req) // 401 if not authenticated
         val uid = req.getAttribute(USER_ID_ATTR) as? Long ?: return mapOf("onboarded" to false)
         return db.queryForList(
-            "SELECT id, phone, email, role, name, status, is_admin FROM users WHERE id = :id",
+            "SELECT id, phone, email, role, name, status, is_admin, coordinator_status FROM users WHERE id = :id",
             MapSqlParameterSource("id", uid),
         ).first() + mapOf("onboarded" to true)
     }
@@ -35,17 +35,22 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         val role = body.role.uppercase()
         if (role !in setOf("COORDINATOR", "DRIVER")) throw badRequest("role must be COORDINATOR or DRIVER")
 
-        db.queryForList("SELECT id, role FROM users WHERE auth_id = :a", MapSqlParameterSource("a", authId))
+        db.queryForList("SELECT id, role, coordinator_status FROM users WHERE auth_id = :a", MapSqlParameterSource("a", authId))
             .firstOrNull()?.let {
-                return mapOf("userId" to (it["id"] as Number).toLong(), "role" to it["role"], "onboarded" to true)
+                return mapOf(
+                    "userId" to (it["id"] as Number).toLong(), "role" to it["role"],
+                    "onboarded" to true, "coordinatorStatus" to it["coordinator_status"],
+                )
             }
 
+        // New coordinators start PENDING (admin must approve before they can post trips); drivers APPROVED.
+        val coordStatus = if (role == "COORDINATOR") "PENDING" else "APPROVED"
         val id = db.queryForObject(
-            "INSERT INTO users(auth_id, email, role, name) VALUES (:a,:e,:r,:n) RETURNING id",
+            "INSERT INTO users(auth_id, email, role, name, coordinator_status) VALUES (:a,:e,:r,:n,:cs) RETURNING id",
             MapSqlParameterSource().addValue("a", authId).addValue("e", emailOf(req))
-                .addValue("r", role).addValue("n", body.name ?: ""),
+                .addValue("r", role).addValue("n", body.name ?: "").addValue("cs", coordStatus),
             Long::class.java,
         )!!
-        return mapOf("userId" to id, "role" to role, "onboarded" to true)
+        return mapOf("userId" to id, "role" to role, "onboarded" to true, "coordinatorStatus" to coordStatus)
     }
 }

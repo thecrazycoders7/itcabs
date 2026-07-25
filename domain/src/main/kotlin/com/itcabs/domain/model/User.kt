@@ -19,4 +19,12 @@ data class User(
     val name: String,
     val status: UserStatus,
     val isAdmin: Boolean = false,
-)
+    // Coordinators only: APPROVED / PENDING / REJECTED. Drivers are always APPROVED (unused).
+    val coordinatorStatus: String = "APPROVED",
+) {
+    /** A coordinator who can't post trips yet (awaiting or denied admin approval). */
+    val coordinatorPending: Boolean get() = role == UserRole.COORDINATOR && coordinatorStatus != "APPROVED"
+}
+
+/** A coordinator awaiting admin approval, shown in the admin review queue. */
+data class PendingCoordinator(val id: Long, val name: String, val email: String?)

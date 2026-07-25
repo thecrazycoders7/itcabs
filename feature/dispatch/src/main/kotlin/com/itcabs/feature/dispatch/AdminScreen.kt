@@ -72,7 +72,13 @@ fun AdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { Text("Pending approvals", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+            item { Text("Pending coordinators", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+            if (state.pendingCoordinators.isEmpty()) item { Text("None waiting.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            items(state.pendingCoordinators, key = { "c-${it.id}" }) { c ->
+                PendingCoordinatorCard(c, onApprove = { viewModel.approveCoordinator(c.id) }, onReject = { reason -> viewModel.rejectCoordinator(c.id, reason) })
+            }
+
+            item { Text("Pending drivers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp)) }
             if (state.pending.isEmpty()) item { Text("None waiting.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(state.pending, key = { "p-${it.id}" }) { d ->
                 PendingDriverCard(
@@ -183,6 +189,42 @@ private fun PendingDriverCard(
         ) {
             TextButton(onClick = { confirmReject = true }) { Text("Reject", color = MaterialTheme.colorScheme.error) }
             Button(onClick = onVerify, shape = MaterialTheme.shapes.small) { Text("Verify") }
+        }
+    }
+}
+
+@Composable
+private fun PendingCoordinatorCard(
+    coordinator: com.itcabs.domain.model.PendingCoordinator,
+    onApprove: () -> Unit,
+    onReject: (String?) -> Unit,
+) {
+    var confirmReject by remember { mutableStateOf(false) }
+    var reason by remember { mutableStateOf("") }
+    if (confirmReject) {
+        AlertDialog(
+            onDismissRequest = { confirmReject = false },
+            title = { Text("Reject ${coordinator.name.ifBlank { "this coordinator" }}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("They'll be notified. Add a reason (optional):")
+                    OutlinedTextField(reason, { reason = it }, placeholder = { Text("e.g. not a recognised company") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = { TextButton(onClick = { confirmReject = false; onReject(reason.trim().ifBlank { null }) }) { Text("Reject", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmReject = false }) { Text("Cancel") } },
+        )
+    }
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(coordinator.name.ifBlank { "(no name)" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        coordinator.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { confirmReject = true }) { Text("Reject", color = MaterialTheme.colorScheme.error) }
+            Button(onClick = onApprove, shape = MaterialTheme.shapes.small) { Text("Approve") }
         }
     }
 }

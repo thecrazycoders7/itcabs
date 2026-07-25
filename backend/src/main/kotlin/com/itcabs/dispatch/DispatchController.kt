@@ -1,9 +1,11 @@
 package com.itcabs.dispatch
 
+import com.itcabs.identity.requireApprovedCoordinator
 import com.itcabs.identity.requireUserId
 import com.itcabs.push.PushService
 import com.itcabs.realtime.LegWebSocketHandler
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.web.bind.annotation.*
 
 @RestController
@@ -12,6 +14,7 @@ class DispatchController(
     private val dispatch: DispatchService,
     private val events: LegWebSocketHandler,
     private val push: PushService,
+    private val db: NamedParameterJdbcTemplate,
 ) {
 
     // coordinator
@@ -19,7 +22,7 @@ class DispatchController(
     fun postJob(req: HttpServletRequest, @RequestBody body: PostJobInput): List<LegDto> {
         // Broadcast AFTER the @Transactional service call returns (committed), so a client that
         // re-fetches on the event sees the new rows.
-        val legs = dispatch.postJob(requireUserId(req), body)
+        val legs = dispatch.postJob(requireApprovedCoordinator(req, db), body)
         legs.forEach { events.legChanged(it.id) }
         push.notifyDriversNewLeg(body.office) // wake drivers whose app is backgrounded (WS covers foreground)
         return legs

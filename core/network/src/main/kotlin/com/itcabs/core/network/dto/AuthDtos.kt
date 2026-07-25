@@ -53,13 +53,19 @@ data class MeDto(
     val name: String? = null,
     val status: String? = null,
     @SerialName("is_admin") val isAdmin: Boolean = false,
+    @SerialName("coordinator_status") val coordinatorStatus: String? = null,
 )
 
 @Serializable
 data class OnboardInputDto(val role: String, val name: String? = null)
 
 @Serializable
-data class OnboardDto(val userId: Long, val role: String, val onboarded: Boolean = true)
+data class OnboardDto(
+    val userId: Long,
+    val role: String,
+    val onboarded: Boolean = true,
+    val coordinatorStatus: String? = null,
+)
 
 @Serializable
 data class KycInputDto(
