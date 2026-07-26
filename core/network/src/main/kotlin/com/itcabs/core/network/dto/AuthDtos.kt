@@ -56,8 +56,30 @@ data class MeDto(
     @SerialName("coordinator_status") val coordinatorStatus: String? = null,
 )
 
+/** Generic "ignore the body, just tell me it succeeded" response. Unknown keys are ignored. */
 @Serializable
-data class OnboardInputDto(val role: String, val name: String? = null)
+data class OkDto(val ok: Boolean = false)
+
+@Serializable
+data class OnboardInputDto(
+    val role: String,
+    val name: String? = null,
+    val companyName: String? = null,
+    val officeAddress: String? = null,
+    val officeLat: Double? = null,
+    val officeLng: Double? = null,
+    val officePlaceId: String? = null,
+)
+
+/** GET /auth/coordinator/company — saved company defaults to prefill new jobs. */
+@Serializable
+data class CoordinatorCompanyDto(
+    @SerialName("company_name") val companyName: String? = null,
+    @SerialName("office_address") val officeAddress: String? = null,
+    @SerialName("office_lat") val officeLat: Double? = null,
+    @SerialName("office_lng") val officeLng: Double? = null,
+    @SerialName("office_place_id") val officePlaceId: String? = null,
+)
 
 @Serializable
 data class OnboardDto(

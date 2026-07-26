@@ -22,11 +22,14 @@ interface DriverApi {
     @POST("api/v1/driver/availability")
     suspend fun setAvailability(@Body body: AvailabilityDto): Response<Map<String, Boolean>>
 
+    // Bodies are ignored (we only care about success). Use a concrete @Serializable DTO — a
+    // Map<String, Any?> has no kotlinx serializer and blows up Retrofit with "Unable to create
+    // converter" at call time (which broke document upload + phone verify).
     @POST("api/v1/driver/verify-phone")
-    suspend fun verifyPhone(@Body body: com.itcabs.core.network.dto.PhoneVerifyDto): Response<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun verifyPhone(@Body body: com.itcabs.core.network.dto.PhoneVerifyDto): Response<com.itcabs.core.network.dto.OkDto>
 
     @POST("api/v1/driver/kyc/documents")
-    suspend fun registerKycDoc(@Body body: com.itcabs.core.network.dto.KycDocInputDto): Response<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun registerKycDoc(@Body body: com.itcabs.core.network.dto.KycDocInputDto): Response<com.itcabs.core.network.dto.OkDto>
 
     @GET("api/v1/driver/kyc/documents")
     suspend fun myKycDocs(): Response<List<com.itcabs.core.network.dto.KycDocDto>>

@@ -6,7 +6,16 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.web.bind.annotation.*
 
-data class OnboardInput(val role: String, val name: String? = null)
+data class OnboardInput(
+    val role: String,
+    val name: String? = null,
+    // Coordinators may capture their company + office once here; prefilled into new jobs.
+    val companyName: String? = null,
+    val officeAddress: String? = null,
+    val officeLat: Double? = null,
+    val officeLng: Double? = null,
+    val officePlaceId: String? = null,
+)
 
 /**
  * Auth against Supabase (Google + email/password). The client signs in with Supabase and sends its
@@ -28,6 +37,16 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         ).first() + mapOf("onboarded" to true)
     }
 
+    /** The coordinator's saved company + office, to prefill new jobs. Empty object if none stored. */
+    @GetMapping("/coordinator/company")
+    fun coordinatorCompany(req: HttpServletRequest): Map<String, Any?> {
+        val uid = requireUserId(req)
+        return db.queryForList(
+            "SELECT company_name, office_address, office_lat, office_lng, office_place_id FROM users WHERE id = :id",
+            MapSqlParameterSource("id", uid),
+        ).firstOrNull() ?: emptyMap()
+    }
+
     /** First-time setup after Supabase sign-in: pick role (+ name). Creates the domain user. Idempotent. */
     @PostMapping("/onboard")
     fun onboard(req: HttpServletRequest, @RequestBody body: OnboardInput): Map<String, Any?> {
@@ -46,9 +65,13 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         // New coordinators start PENDING (admin must approve before they can post trips); drivers APPROVED.
         val coordStatus = if (role == "COORDINATOR") "PENDING" else "APPROVED"
         val id = db.queryForObject(
-            "INSERT INTO users(auth_id, email, role, name, coordinator_status) VALUES (:a,:e,:r,:n,:cs) RETURNING id",
+            """INSERT INTO users(auth_id, email, role, name, coordinator_status,
+                                 company_name, office_address, office_lat, office_lng, office_place_id)
+               VALUES (:a,:e,:r,:n,:cs,:cn,:oa,:olat,:olng,:opid) RETURNING id""",
             MapSqlParameterSource().addValue("a", authId).addValue("e", emailOf(req))
-                .addValue("r", role).addValue("n", body.name ?: "").addValue("cs", coordStatus),
+                .addValue("r", role).addValue("n", body.name ?: "").addValue("cs", coordStatus)
+                .addValue("cn", body.companyName).addValue("oa", body.officeAddress)
+                .addValue("olat", body.officeLat).addValue("olng", body.officeLng).addValue("opid", body.officePlaceId),
             Long::class.java,
         )!!
         return mapOf("userId" to id, "role" to role, "onboarded" to true, "coordinatorStatus" to coordStatus)
