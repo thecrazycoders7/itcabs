@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +72,7 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
 
     // First-time driver with nothing done yet → show a "what you'll need" primer so they gather
     // documents before starting (cuts mid-flow abandonment). Returning drivers skip straight to the form.
-    var introDismissed by remember { mutableStateOf(false) }
+    var introDismissed by rememberSaveable { mutableStateOf(false) }
     val freshStart = !state.phoneVerified && state.uploadedCount == 0 &&
         state.kycStatus == com.itcabs.domain.model.KycStatus.NONE
     if (freshStart && !introDismissed) {
@@ -239,8 +240,10 @@ private fun CheckLine(done: Boolean, label: String) {
 private fun DocumentsSection(state: DriverKycUiState, viewModel: DriverKycViewModel, onlyReupload: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var targetType by remember { mutableStateOf<String?>(null) }
-    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    // Saveable: the camera app can kill+recreate our process (common on aggressive OEMs). Without this
+    // the target slot + capture URI are wiped, so the returned photo is dropped and the screen resets.
+    var targetType by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraUriStr by rememberSaveable { mutableStateOf<String?>(null) }
     // Local preview URIs so the driver sees the photo they picked (bucket is private, no remote URL).
     val previews = remember { androidx.compose.runtime.mutableStateMapOf<String, Uri>() }
 
@@ -258,7 +261,7 @@ private fun DocumentsSection(state: DriverKycUiState, viewModel: DriverKycViewMo
         if (uri != null && t != null) handlePicked(t, uri)
     }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val t = targetType; val uri = cameraUri
+        val t = targetType; val uri = cameraUriStr?.let(Uri::parse)
         if (ok && t != null && uri != null) handlePicked(t, uri)
     }
 
@@ -271,8 +274,9 @@ private fun DocumentsSection(state: DriverKycUiState, viewModel: DriverKycViewMo
                 preview = previews[def.type],
                 onCamera = {
                     targetType = def.type
-                    cameraUri = newCameraUri(context)
-                    cameraUri?.let { camera.launch(it) }
+                    val uri = newCameraUri(context)
+                    cameraUriStr = uri.toString()
+                    camera.launch(uri)
                 },
                 onGallery = { targetType = def.type; gallery.launch("image/*") },
             )
