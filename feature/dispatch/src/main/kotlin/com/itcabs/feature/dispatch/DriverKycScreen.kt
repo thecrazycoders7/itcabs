@@ -69,6 +69,16 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
         return
     }
 
+    // First-time driver with nothing done yet → show a "what you'll need" primer so they gather
+    // documents before starting (cuts mid-flow abandonment). Returning drivers skip straight to the form.
+    var introDismissed by remember { mutableStateOf(false) }
+    val freshStart = !state.phoneVerified && state.uploadedCount == 0 &&
+        state.kycStatus == com.itcabs.domain.model.KycStatus.NONE
+    if (freshStart && !introDismissed) {
+        WhatYouNeedIntro(onStart = { introDismissed = true }, onBack = onDone)
+        return
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -126,6 +136,47 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
             if (state.loading) CircularProgressIndicator(Modifier.padding(4.dp), strokeWidth = 2.dp) else Text("Submit for review")
         }
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Pre-KYC primer: what to have ready + a privacy reassurance, so drivers gather docs before starting. */
+@Composable
+private fun WhatYouNeedIntro(onStart: () -> Unit, onBack: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            TextButton(onClick = onBack) { Text("Back") }
+        }
+        Text("Get verified to start driving", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Takes about 5 minutes. Have these ready before you begin:",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            NeedLine("📱", "Your mobile number (we'll send an OTP)")
+            NeedLine("🪪", "Driving licence — front & back")
+            NeedLine("🆔", "Aadhaar card — front & back")
+            NeedLine("🚗", "Vehicle RC — front & back")
+            NeedLine("📄", "Permit, Insurance & Fitness certificate")
+        }
+        Divider(Modifier.padding(vertical = 4.dp))
+        Text(
+            "🔒 Your documents are stored privately and are visible only to our verification team. " +
+                "We never show your full Aadhaar number after upload.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text("Get started") }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun NeedLine(emoji: String, label: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(emoji, style = MaterialTheme.typography.titleMedium)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
