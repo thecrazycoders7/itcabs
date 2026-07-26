@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.crashlytics)
     id("com.google.firebase.appdistribution")
 }
 
@@ -121,8 +122,10 @@ dependencies {
     implementation(libs.androidx.security.crypto)
 
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth)       // phone-OTP KYC
-    implementation(libs.firebase.messaging)  // FCM push
+    implementation(libs.firebase.auth)         // phone-OTP KYC
+    implementation(libs.firebase.messaging)    // FCM push
+    implementation(libs.firebase.crashlytics)  // crash reporting (auto-uploads R8 mapping)
+    implementation(libs.firebase.analytics)    // onboarding funnel events
     // firestore/storage removed — the port uses the backend API + Supabase Storage, not Firebase.
 
     testImplementation(libs.junit)
