@@ -127,6 +127,11 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, editJob: com.itcabs.domain.model.
         }
     }
     fun launchSearch(i: Int) {
+        // Never crash if the Maps/Places key is missing (empty-key build): degrade to a message.
+        if (!Places.isInitialized()) {
+            placesError = "Address search unavailable — maps key not configured in this build."
+            return
+        }
         searchIndex = i
         val fields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
         placesLauncher.launch(
