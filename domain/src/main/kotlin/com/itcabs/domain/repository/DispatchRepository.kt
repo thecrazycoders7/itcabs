@@ -8,7 +8,6 @@ import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
 import com.itcabs.domain.model.NewLeg
-import com.itcabs.domain.model.VerifiedDriver
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -31,10 +30,6 @@ interface DispatchRepository {
     suspend fun setStatus(legId: Long, status: LegStatus): AppResult<Unit>
     /** Edit an OPEN leg in place (fare/time/route/passenger). */
     suspend fun editLeg(legId: Long, edit: NewLeg): AppResult<Leg>
-    /** Verified drivers the coordinator can hand-assign a trip to. */
-    suspend fun verifiedDrivers(): AppResult<List<VerifiedDriver>>
-    /** Directly assign an OPEN leg to a specific verified driver. */
-    suspend fun assign(legId: Long, driverId: Long): AppResult<Leg>
     /** Report a claimed driver as a no-show: dings their reliability and reopens the leg. */
     suspend fun markNoShow(legId: Long): AppResult<Unit>
     /** Coordinator marks a completed leg settled (cash paid to driver). */

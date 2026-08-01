@@ -33,7 +33,6 @@ data class EditLegInput(
     val passengerPhone: String? = null,
 )
 
-data class AssignInput(val driverId: Long)
 data class AvailabilityInput(val available: Boolean)
 data class LocationInput(val lat: Double, val lng: Double)
 
@@ -65,9 +64,6 @@ data class LegDto(
     val pickupOtp: String? = null,
     val version: Int,
 )
-
-/** A verified driver a coordinator can directly assign a trip to. */
-data class VerifiedDriverDto(val id: Long, val name: String, val tripsCompleted: Int, val noShows: Int)
 
 data class StatusUpdate(val status: String)
 data class StageUpdate(val stage: String, val otp: String? = null)

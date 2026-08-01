@@ -7,7 +7,6 @@ import com.itcabs.domain.model.JobTemplate
 import com.itcabs.domain.model.Leg
 import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewLeg
-import com.itcabs.domain.model.VerifiedDriver
 import com.itcabs.domain.repository.DispatchRepository
 import com.itcabs.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,7 +21,6 @@ data class CoordinatorHomeUiState(
     val legs: List<Leg> = emptyList(),
     val statusFilter: LegStatus? = null,   // null = all
     val query: String = "",
-    val verifiedDrivers: List<VerifiedDriver> = emptyList(),
     val templates: List<JobTemplate> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
@@ -132,23 +130,6 @@ class CoordinatorHomeViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
         viewModelScope.launch {
             when (val r = dispatch.editLeg(legId, edit)) {
-                is AppResult.Ok -> refresh()
-                is AppResult.Err -> _state.update { it.copy(error = r.message) }
-            }
-        }
-    }
-
-    // --- direct assign to a verified driver ---
-    fun loadDrivers() {
-        viewModelScope.launch {
-            (dispatch.verifiedDrivers() as? AppResult.Ok)?.let { r -> _state.update { it.copy(verifiedDrivers = r.value) } }
-        }
-    }
-
-    fun assign(legId: Long, driverId: Long) {
-        _state.update { it.copy(error = null) }
-        viewModelScope.launch {
-            when (val r = dispatch.assign(legId, driverId)) {
                 is AppResult.Ok -> refresh()
                 is AppResult.Err -> _state.update { it.copy(error = r.message) }
             }

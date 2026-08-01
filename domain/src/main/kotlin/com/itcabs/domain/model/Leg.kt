@@ -58,9 +58,6 @@ data class NewLeg(
     val passengerPhone: String = "",
 )
 
-/** A verified driver a coordinator can hand-assign a trip to. */
-data class VerifiedDriver(val id: Long, val name: String, val tripsCompleted: Int, val noShows: Int)
-
 /** A saved route the coordinator can re-post with one tap (optionally recurring). */
 data class JobTemplate(
     val id: Long,

@@ -9,7 +9,6 @@ import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewCompanyJob
 import com.itcabs.domain.model.NewStop
 import com.itcabs.domain.model.TripType
-import com.itcabs.domain.model.VerifiedDriver
 import com.itcabs.domain.repository.CompanyJobRepository
 import com.itcabs.domain.repository.DispatchRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,7 +22,6 @@ import javax.inject.Inject
 data class CompanyJobUiState(
     val jobs: List<CompanyJob> = emptyList(),
     val areas: List<Area> = emptyList(),
-    val verifiedDrivers: List<VerifiedDriver> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
     val published: Boolean = false,
@@ -77,12 +75,6 @@ class CompanyJobViewModel @Inject constructor(
                 is AppResult.Ok -> { _state.update { it.copy(loading = false, published = true) }; refresh() }
                 is AppResult.Err -> _state.update { it.copy(loading = false, error = r.message) }
             }
-        }
-    }
-
-    fun loadDrivers() {
-        viewModelScope.launch {
-            (dispatch.verifiedDrivers() as? AppResult.Ok)?.let { r -> _state.update { it.copy(verifiedDrivers = r.value) } }
         }
     }
 

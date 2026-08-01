@@ -36,9 +36,6 @@ data class CompanyJobInputDto(
 data class StopsUpdateDto(val stops: List<StopInputDto>)
 
 @Serializable
-data class CompanyAssignDto(val driverId: Long)
-
-@Serializable
 data class StopPickupDto(val otp: String? = null)
 
 @Serializable

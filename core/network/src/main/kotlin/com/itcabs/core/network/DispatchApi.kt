@@ -1,7 +1,6 @@
 package com.itcabs.core.network
 
 import com.itcabs.core.network.dto.AreaDto
-import com.itcabs.core.network.dto.AssignDto
 import com.itcabs.core.network.dto.CoordinatorStatsDto
 import com.itcabs.core.network.dto.DriverLocationDto
 import com.itcabs.core.network.dto.EditLegDto
@@ -13,7 +12,6 @@ import com.itcabs.core.network.dto.StageUpdateDto
 import com.itcabs.core.network.dto.StatusUpdateDto
 import com.itcabs.core.network.dto.TemplateDto
 import com.itcabs.core.network.dto.TemplateInputDto
-import com.itcabs.core.network.dto.VerifiedDriverDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -42,12 +40,6 @@ interface DispatchApi {
 
     @PATCH("api/v1/legs/{id}")
     suspend fun editLeg(@Path("id") id: Long, @Body body: EditLegDto): Response<LegDto>
-
-    @GET("api/v1/drivers/verified")
-    suspend fun verifiedDrivers(): Response<List<VerifiedDriverDto>>
-
-    @POST("api/v1/legs/{id}/assign")
-    suspend fun assign(@Path("id") id: Long, @Body body: AssignDto): Response<LegDto>
 
     @GET("api/v1/templates")
     suspend fun templates(): Response<List<TemplateDto>>

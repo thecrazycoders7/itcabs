@@ -119,34 +119,6 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         return legsWhere("l.id = :qid", MapSqlParameterSource("qid", legId)).first()
     }
 
-    /** Verified, active drivers a coordinator can hand a trip to directly. */
-    fun verifiedDrivers(): List<VerifiedDriverDto> = db.query(
-        """SELECT u.id, u.name, p.trips_completed, p.no_shows
-             FROM users u JOIN driver_profiles p ON p.user_id = u.id
-            WHERE u.role='DRIVER' AND u.status='ACTIVE' AND p.kyc_status='VERIFIED'
-            ORDER BY p.trips_completed DESC, u.name""",
-        MapSqlParameterSource(),
-    ) { rs, _ -> VerifiedDriverDto(rs.getLong("id"), rs.getString("name") ?: "", rs.getInt("trips_completed"), rs.getInt("no_shows")) }
-
-    /** Coordinator hand-assigns an OPEN leg to a specific verified driver (skips first-claim bidding). */
-    @Transactional
-    fun assign(coordinatorId: Long, legId: Long, driverId: Long): LegDto {
-        val eligible = db.queryForObject(
-            """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
-            MapSqlParameterSource("d", driverId), Boolean::class.java,
-        ) ?: false
-        if (!eligible) throw badRequest("driver is not verified")
-        val n = db.update(
-            """UPDATE legs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), pickup_otp=:otp, version=version+1
-               WHERE id=:id AND coordinator_id=:c AND status='OPEN'""",
-            MapSqlParameterSource().addValue("d", driverId).addValue("id", legId)
-                .addValue("c", coordinatorId).addValue("otp", newOtp()),
-        )
-        if (n == 0) throw conflict("leg not open, not yours, or already taken")
-        return legsWhere("l.id = :qid", MapSqlParameterSource("qid", legId)).first()
-    }
-
     /**
      * Coordinator reports a no-show: records it against the driver's reliability and REOPENS the leg
      * so someone else can claim it. Accountability is the point — ghosting has a cost.

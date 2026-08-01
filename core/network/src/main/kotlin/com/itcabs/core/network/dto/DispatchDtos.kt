@@ -39,12 +39,6 @@ data class EditLegDto(
 )
 
 @Serializable
-data class AssignDto(val driverId: Long)
-
-@Serializable
-data class VerifiedDriverDto(val id: Long, val name: String, val tripsCompleted: Int = 0, val noShows: Int = 0)
-
-@Serializable
 data class TemplateInputDto(
     val name: String,
     val office: String,

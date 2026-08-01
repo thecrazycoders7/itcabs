@@ -60,19 +60,6 @@ class DispatchController(
         return leg
     }
 
-    /** Verified drivers a coordinator can hand-assign a trip to. */
-    @GetMapping("/drivers/verified")
-    fun verifiedDrivers() = dispatch.verifiedDrivers()
-
-    /** Coordinator hand-assigns an OPEN leg to a specific driver. */
-    @PostMapping("/legs/{id}/assign")
-    fun assign(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: AssignInput): LegDto {
-        val leg = dispatch.assign(requireUserId(req), id, body.driverId)
-        events.legChanged(id)
-        push.notifyUser(body.driverId, "Trip assigned to you", "You've been assigned a ${leg.pickup} → ${leg.drop} trip.")
-        return leg
-    }
-
     /** Coordinator reports a no-show: dings the driver's reliability and reopens the leg. */
     @PostMapping("/legs/{id}/no-show")
     fun noShow(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any> {

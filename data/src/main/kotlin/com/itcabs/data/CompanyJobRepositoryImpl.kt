@@ -1,7 +1,6 @@
 package com.itcabs.data
 
 import com.itcabs.core.network.CompanyJobApi
-import com.itcabs.core.network.dto.CompanyAssignDto
 import com.itcabs.core.network.dto.CompanyJobDto
 import com.itcabs.core.network.dto.CompanyJobInputDto
 import com.itcabs.core.network.dto.StatusUpdateDto

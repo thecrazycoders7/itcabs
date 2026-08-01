@@ -31,8 +31,6 @@ data class CompanyJobInput(
 /** Replace the full ordered stop list of an OPEN job (covers edit / remove / reorder). */
 data class StopsUpdate(val stops: List<StopInput>)
 
-data class CompanyAssignInput(val driverId: Long)
-
 /** Driver confirms pickup at a stop with the employee's OTP. */
 data class StopPickupInput(val otp: String? = null)
 

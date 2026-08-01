@@ -60,7 +60,6 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
     var ratingLegId by rememberSaveable { mutableStateOf<Long?>(null) }
     var chatLegId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editLeg by remember { mutableStateOf<Leg?>(null) }
-    var assignLeg by remember { mutableStateOf<Leg?>(null) }
     var mapLeg by remember { mutableStateOf<Leg?>(null) }
     var driverProfileId by remember { mutableStateOf<Long?>(null) }
     var showTemplates by rememberSaveable { mutableStateOf(false) }
@@ -95,7 +94,6 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
         onFilter = viewModel::onFilter,
         onQuery = viewModel::onQuery,
         onEdit = { editLeg = it },
-        onAssign = { assignLeg = it; viewModel.loadDrivers() },
         onExport = { shareCsv(context, state.legs) },
         onTemplates = { showTemplates = true; viewModel.loadTemplates() },
         onMap = { mapLeg = it },
@@ -107,9 +105,6 @@ fun CoordinatorHomeScreen(viewModel: CoordinatorHomeViewModel = hiltViewModel())
     }
     editLeg?.let { leg ->
         EditLegDialog(leg, onDismiss = { editLeg = null }, onSave = { edit -> viewModel.editLeg(leg.id, edit); editLeg = null })
-    }
-    assignLeg?.let { leg ->
-        AssignDialog(state.verifiedDrivers, onDismiss = { assignLeg = null }, onPick = { driverId -> viewModel.assign(leg.id, driverId); assignLeg = null })
     }
     driverProfileId?.let { DriverProfileDialog(it, onDismiss = { driverProfileId = null }) }
     if (showTemplates) {
@@ -138,7 +133,6 @@ fun CoordinatorHomeContent(
     onFilter: (LegStatus?) -> Unit = {},
     onQuery: (String) -> Unit = {},
     onEdit: (Leg) -> Unit = {},
-    onAssign: (Leg) -> Unit = {},
     onExport: () -> Unit = {},
     onTemplates: () -> Unit = {},
     onMap: (Leg) -> Unit = {},
@@ -210,7 +204,7 @@ fun CoordinatorHomeContent(
                         onCancel = { onCancel(leg.id) }, onRate = { onRateClick(leg.id) },
                         onRepost = { onRepost(leg.jobId) }, onChat = { onChat(leg.id) },
                         onNoShow = { onNoShow(leg.id) }, onMarkPaid = { onMarkPaid(leg.id) },
-                        onEdit = { onEdit(leg) }, onAssign = { onAssign(leg) },
+                        onEdit = { onEdit(leg) },
                         onMap = { onMap(leg) }, onDriverProfile = { onDriverProfile(leg) },
                     )
                 }
@@ -231,7 +225,6 @@ private fun CoordinatorLegCard(
     onNoShow: () -> Unit,
     onMarkPaid: () -> Unit,
     onEdit: () -> Unit,
-    onAssign: () -> Unit,
     onMap: () -> Unit,
     onDriverProfile: () -> Unit,
 ) {
@@ -286,7 +279,6 @@ private fun CoordinatorLegCard(
             when (leg.status) {
                 LegStatus.OPEN -> {
                     TextButton(onClick = onEdit) { Text("Edit") }
-                    TextButton(onClick = onAssign) { Text("Assign") }
                     TextButton(onClick = onCancel) { Text("Cancel", color = MaterialTheme.colorScheme.error) }
                 }
                 LegStatus.CLAIMED -> {
@@ -340,33 +332,6 @@ private fun EditLegDialog(leg: Leg, onDismiss: () -> Unit, onSave: (NewLeg) -> U
             }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
-@Composable
-private fun AssignDialog(drivers: List<com.itcabs.domain.model.VerifiedDriver>, onDismiss: () -> Unit, onPick: (Long) -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Assign to a driver") },
-        text = {
-            if (drivers.isEmpty()) Text("No verified drivers available.")
-            else Column {
-                drivers.forEach { d ->
-                    Row(
-                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).padding(vertical = 4.dp),
-                        Arrangement.SpaceBetween, Alignment.CenterVertically,
-                    ) {
-                        Column {
-                            Text(d.name.ifBlank { "Driver ${d.id}" }, fontWeight = FontWeight.Medium)
-                            Text("${d.tripsCompleted} trips" + if (d.noShows > 0) " · ${d.noShows} no-shows" else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        TextButton(onClick = { onPick(d.id) }) { Text("Assign") }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
 }
 

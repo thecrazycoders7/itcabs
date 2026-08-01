@@ -5,7 +5,6 @@ import com.itcabs.core.database.toDomain
 import com.itcabs.core.database.toEntity
 import com.itcabs.core.network.DispatchApi
 import com.itcabs.core.network.RealtimeClient
-import com.itcabs.core.network.dto.AssignDto
 import com.itcabs.core.network.dto.EditLegDto
 import com.itcabs.core.network.dto.LegDto
 import com.itcabs.core.network.dto.LocationDto
@@ -22,7 +21,6 @@ import com.itcabs.domain.model.LegStatus
 import com.itcabs.domain.model.NewJob
 import com.itcabs.domain.model.NewLeg
 import com.itcabs.domain.model.TopDriver
-import com.itcabs.domain.model.VerifiedDriver
 import com.itcabs.domain.repository.DispatchRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -89,12 +87,6 @@ class DispatchRepositoryImpl(
                 passengerName = edit.passengerName, passengerPhone = edit.passengerPhone,
             ),
         ).asResult { dto -> dto.toDomain().also { dao.insertLegs(listOf(it.toEntity())) } }
-
-    override suspend fun verifiedDrivers(): AppResult<List<VerifiedDriver>> =
-        api.verifiedDrivers().asResult { list -> list.map { VerifiedDriver(it.id, it.name, it.tripsCompleted, it.noShows) } }
-
-    override suspend fun assign(legId: Long, driverId: Long): AppResult<Leg> =
-        api.assign(legId, AssignDto(driverId)).asResult { dto -> dto.toDomain().also { dao.insertLegs(listOf(it.toEntity())) } }
 
     override suspend fun templates(): AppResult<List<JobTemplate>> =
         api.templates().asResult { list -> list.map { it.toDomain() } }

@@ -169,24 +169,6 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
         db.update("UPDATE job_stops SET pickup_otp=NULL, picked_up_at=NULL WHERE job_id=:id", MapSqlParameterSource("id", jobId))
     }
 
-    @Transactional
-    fun assign(coordinatorId: Long, jobId: Long, driverId: Long): CompanyJobDto {
-        val eligible = db.queryForObject(
-            """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
-            MapSqlParameterSource("d", driverId), Boolean::class.java,
-        ) ?: false
-        if (!eligible) throw badRequest("driver is not verified")
-        val n = db.update(
-            """UPDATE company_jobs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), version=version+1
-               WHERE id=:id AND coordinator_id=:c AND status='OPEN'""",
-            MapSqlParameterSource().addValue("d", driverId).addValue("id", jobId).addValue("c", coordinatorId),
-        )
-        if (n == 0) throw conflict("job not open, not yours, or already taken")
-        assignStopOtps(jobId)
-        return oneJob(coordinatorId, jobId, forCoordinator = true)
-    }
-
     // --- driver ---
 
     /** Only OPEN jobs matching the driver's own vehicle type (Sedan driver → Sedan jobs). */
