@@ -95,18 +95,20 @@ class DispatchController(
     // driver
     @GetMapping("/legs")
     fun feed(
+        req: HttpServletRequest,
         @RequestParam(required = false) area: String?,
         @RequestParam(required = false) vehicleType: String?,
         @RequestParam(required = false) lat: Double?,
         @RequestParam(required = false) lng: Double?,
-    ) = dispatch.feed(area, vehicleType, lat, lng)
+    ) = dispatch.feed(requireUserId(req), area, vehicleType, lat, lng)
 
     /** Scheduled trips not yet live — a preview so drivers can plan their day. */
     @GetMapping("/legs/upcoming")
     fun upcoming(
+        req: HttpServletRequest,
         @RequestParam(required = false) lat: Double?,
         @RequestParam(required = false) lng: Double?,
-    ) = dispatch.feed(null, null, lat, lng, upcoming = true)
+    ) = dispatch.feed(requireUserId(req), null, null, lat, lng, upcoming = true)
 
     /** Driver releases a trip they claimed (no no-show). Reopens it for others. */
     @PostMapping("/legs/{id}/release")

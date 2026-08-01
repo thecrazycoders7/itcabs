@@ -27,18 +27,22 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                 .addValue("pa", publishAt?.let { java.sql.Timestamp.from(it.toInstant()) }),
             Long::class.java,
         )!!
+        // Fairness offer-window (#7): starts when the job goes live (publish_at, or now for instant jobs).
+        val liveAt = publishAt ?: java.time.OffsetDateTime.now()
+        val offerUntil = java.sql.Timestamp.from(liveAt.plusSeconds(OFFER_WINDOW_SECONDS).toInstant())
         input.legs.forEach { leg ->
             if (leg.farePaise < MIN_FARE_PAISE) throw badRequest("fare must be at least ₹${MIN_FARE_PAISE / 100}")
             db.update(
                 """INSERT INTO legs(job_id, coordinator_id, pickup, drop_point, area, time_window,
-                                    vehicle_type, fare_paise, seats, passenger_name, passenger_phone)
-                   VALUES (:j,:c,:pk,:dp,:ar,:tw,:vt,:fp,:st,:pn,:pp)""",
+                                    vehicle_type, fare_paise, seats, passenger_name, passenger_phone, offer_until)
+                   VALUES (:j,:c,:pk,:dp,:ar,:tw,:vt,:fp,:st,:pn,:pp,:ou)""",
                 MapSqlParameterSource()
                     .addValue("j", jobId).addValue("c", coordinatorId)
                     .addValue("pk", leg.pickup).addValue("dp", leg.drop).addValue("ar", leg.area)
                     .addValue("tw", leg.timeWindow).addValue("vt", leg.vehicleType)
                     .addValue("fp", leg.farePaise).addValue("st", leg.seats)
-                    .addValue("pn", leg.passengerName).addValue("pp", leg.passengerPhone),
+                    .addValue("pn", leg.passengerName).addValue("pp", leg.passengerPhone)
+                    .addValue("ou", offerUntil),
             )
         }
         return legsWhere("job_id = :j", MapSqlParameterSource("j", jobId))
@@ -246,11 +250,18 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
     // --- driver: browse + claim ---
 
     /** Open legs; with driver coords, nearest-first. [upcoming]=true previews scheduled (not-yet-live) legs. */
-    fun feed(area: String?, vehicleType: String?, lat: Double?, lng: Double?, upcoming: Boolean = false): List<LegDto> {
+    fun feed(driverId: Long, area: String?, vehicleType: String?, lat: Double?, lng: Double?, upcoming: Boolean = false): List<LegDto> {
         // Scheduled jobs stay hidden until their publish_at, except the explicit upcoming preview.
         val visibility = if (upcoming) "j.publish_at > now()" else "j.publish_at <= now()"
         val where = StringBuilder("l.status = 'OPEN' AND $visibility")
-        val params = MapSqlParameterSource()
+        val params = MapSqlParameterSource().addValue("did", driverId)
+        // Fairness offer-window (#7): during a live leg's window, only clean-record drivers see it.
+        if (!upcoming) {
+            where.append(
+                " AND (l.offer_until IS NULL OR l.offer_until <= now()" +
+                    " OR (SELECT no_shows FROM driver_profiles WHERE user_id = :did) = 0)",
+            )
+        }
         if (!area.isNullOrBlank()) { where.append(" AND l.area = :ar"); params.addValue("ar", area) }
         if (!vehicleType.isNullOrBlank()) { where.append(" AND l.vehicle_type = :vt"); params.addValue("vt", vehicleType) }
         where.append(
@@ -295,12 +306,23 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         ) ?: 0
         if (active >= MAX_ACTIVE_CLAIMS) throw conflict("Finish your current trip before claiming another.")
 
-        // Atomic first-claim-wins. Re-checks eligibility, enforces vehicle-type match (P0), and the
-        // one-active-trip cap (NOT EXISTS) so even simultaneous taps by the same driver can't exceed it.
+        // Fairness offer-window (#7): during the window, only clean-record (0 no-shows) drivers may claim.
+        // Friendly pre-check; the UPDATE condition below enforces it atomically.
+        val reservedForPriority = db.queryForObject(
+            """SELECT (l.offer_until > now()) AND (p.no_shows > 0)
+                 FROM legs l, driver_profiles p WHERE l.id=:id AND p.user_id=:d""",
+            MapSqlParameterSource().addValue("id", legId).addValue("d", driverId), Boolean::class.java,
+        ) ?: false
+        if (reservedForPriority) throw conflict("Reserved for top-rated drivers for a few more seconds — try again shortly.")
+
+        // Atomic first-claim-wins. Re-checks eligibility, enforces vehicle-type match (P0), the offer
+        // window (#7), and the one-active-trip cap (NOT EXISTS) so even simultaneous taps can't exceed it.
         val won = db.update(
             """UPDATE legs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), pickup_otp=:otp, version=version+1
                WHERE id=:id AND status='OPEN'
                  AND (vehicle_type='' OR vehicle_type = (SELECT vehicle_type FROM driver_profiles WHERE user_id=:d))
+                 AND (offer_until IS NULL OR offer_until <= now()
+                      OR (SELECT no_shows FROM driver_profiles WHERE user_id=:d) = 0)
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
                              WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified
                                    AND p.available AND p.no_shows < :maxns)
@@ -457,6 +479,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         const val MAX_NO_SHOWS = 3          // reliability gate: block claiming past this many no-shows
         const val STALE_CLAIM_MINUTES = 15  // auto-release a claim not started within this window
         const val MIN_FARE_PAISE = 1000L    // fare floor (₹10) — blocks ₹0/₹1 spam; tune to business rules
+        const val OFFER_WINDOW_SECONDS = 90L // fairness: clean-record drivers get first claim for this long
 
         private val LEG_MAPPER = RowMapper { rs, _ ->
             LegDto(
