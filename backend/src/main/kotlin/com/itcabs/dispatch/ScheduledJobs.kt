@@ -18,9 +18,18 @@ import org.springframework.stereotype.Component
 class ScheduledJobs(
     private val templates: TemplateService,
     private val push: PushService,
+    private val dispatch: DispatchService,
     private val db: NamedParameterJdbcTemplate,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    /** Every 5 min: reopen claims a driver grabbed but never started, so a flaky driver can't lock rides out. */
+    @Scheduled(fixedRate = 300_000L)
+    fun releaseStaleClaims() {
+        runCatching { dispatch.releaseStaleClaims() }
+            .onSuccess { if (it > 0) log.info("auto-released {} stale claim(s) back to the pool", it) }
+            .onFailure { log.warn("stale-claim sweep failed: {}", it.message) }
+    }
 
     /** Post recurring templates for the day. Runs at 04:30 IST-ish (server TZ) and hourly as a catch-up. */
     @Scheduled(cron = "0 30 4 * * *")

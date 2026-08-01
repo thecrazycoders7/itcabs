@@ -28,7 +28,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
             Long::class.java,
         )!!
         input.legs.forEach { leg ->
-            if (leg.farePaise < 0) throw badRequest("fare must be >= 0")
+            if (leg.farePaise < MIN_FARE_PAISE) throw badRequest("fare must be at least ₹${MIN_FARE_PAISE / 100}")
             db.update(
                 """INSERT INTO legs(job_id, coordinator_id, pickup, drop_point, area, time_window,
                                     vehicle_type, fare_paise, seats, passenger_name, passenger_phone)
@@ -101,7 +101,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         set("area", "ar", input.area)
         set("time_window", "tw", input.timeWindow)
         set("vehicle_type", "vt", input.vehicleType)
-        input.farePaise?.let { if (it < 0) throw badRequest("fare must be >= 0") }
+        input.farePaise?.let { if (it < MIN_FARE_PAISE) throw badRequest("fare must be at least ₹${MIN_FARE_PAISE / 100}") }
         set("fare_paise", "fp", input.farePaise)
         set("seats", "st", input.seats)
         set("passenger_name", "pn", input.passengerName)
@@ -277,29 +277,59 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
      */
     @Transactional
     fun claim(driverId: Long, legId: Long): LegDto {
-        // Pre-check only to return a precise 403 vs 409 message; the UPDATE re-checks atomically.
+        // Eligibility (P1): active account, KYC-verified, phone-verified, on-duty, and not a repeat
+        // no-show. Pre-check gives a precise message; the UPDATE re-checks the same rules atomically.
         val eligible = db.queryForObject(
             """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
-            MapSqlParameterSource("d", driverId), Boolean::class.java,
+               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified
+                     AND p.available AND p.no_shows < :maxns)""",
+            MapSqlParameterSource().addValue("d", driverId).addValue("maxns", MAX_NO_SHOWS),
+            Boolean::class.java,
         ) ?: false
-        if (!eligible) throw forbidden("driver not verified")
+        if (!eligible) throw forbidden("Not eligible: verify KYC + phone, go on-duty, and clear pending no-shows.")
 
+        // Anti-hoarding (P0): one live trip at a time. Friendly pre-check; NOT EXISTS below makes it atomic.
+        val active = db.queryForObject(
+            "SELECT count(*) FROM legs WHERE claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')",
+            MapSqlParameterSource("d", driverId), Int::class.java,
+        ) ?: 0
+        if (active >= MAX_ACTIVE_CLAIMS) throw conflict("Finish your current trip before claiming another.")
+
+        // Atomic first-claim-wins. Re-checks eligibility, enforces vehicle-type match (P0), and the
+        // one-active-trip cap (NOT EXISTS) so even simultaneous taps by the same driver can't exceed it.
         val won = db.update(
             """UPDATE legs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), pickup_otp=:otp, version=version+1
                WHERE id=:id AND status='OPEN'
+                 AND (vehicle_type='' OR vehicle_type = (SELECT vehicle_type FROM driver_profiles WHERE user_id=:d))
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
-            MapSqlParameterSource().addValue("d", driverId).addValue("id", legId).addValue("otp", newOtp()),
+                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified
+                                   AND p.available AND p.no_shows < :maxns)
+                 AND NOT EXISTS (SELECT 1 FROM legs x WHERE x.claimed_by=:d AND x.status IN ('CLAIMED','CONFIRMED'))""",
+            MapSqlParameterSource().addValue("d", driverId).addValue("id", legId)
+                .addValue("otp", newOtp()).addValue("maxns", MAX_NO_SHOWS),
         )
         db.update(
             "INSERT INTO claims_audit(leg_id, driver_id, outcome) VALUES (:l,:d,:o)",
             MapSqlParameterSource().addValue("l", legId).addValue("d", driverId)
                 .addValue("o", if (won == 1) "WON" else "LOST"),
         )
-        if (won == 0) throw conflict("leg already taken")
+        if (won == 0) throw conflict("No longer available — already taken, wrong vehicle type, or you have an active trip.")
         return legsWhere("l.id = :id", MapSqlParameterSource("id", legId)).first().copy(pickupOtp = null)
     }
+
+    /**
+     * P1: auto-release stale claims. A driver who claims but never starts the trip (no trip_stage)
+     * within [STALE_CLAIM_MINUTES] loses it back to the OPEN pool, so one flaky driver can't lock a
+     * ride out of the market indefinitely. Driven by a scheduled sweep. Returns count released.
+     */
+    @Transactional
+    fun releaseStaleClaims(): Int = db.update(
+        """UPDATE legs SET status='OPEN', claimed_by=NULL, claimed_at=NULL, pickup_otp=NULL,
+                          trip_stage=NULL, version=version+1
+           WHERE status='CLAIMED' AND trip_stage IS NULL
+             AND claimed_at < now() - make_interval(mins => :mins)""",
+        MapSqlParameterSource("mins", STALE_CLAIM_MINUTES),
+    )
 
     /** Coordinator marks a completed leg as settled (cash paid to the driver). Idempotent. */
     @Transactional
@@ -423,6 +453,11 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
     )
 
     companion object {
+        const val MAX_ACTIVE_CLAIMS = 1     // anti-hoarding: one live trip per driver (tune with pilot data)
+        const val MAX_NO_SHOWS = 3          // reliability gate: block claiming past this many no-shows
+        const val STALE_CLAIM_MINUTES = 15  // auto-release a claim not started within this window
+        const val MIN_FARE_PAISE = 1000L    // fare floor (₹10) — blocks ₹0/₹1 spam; tune to business rules
+
         private val LEG_MAPPER = RowMapper { rs, _ ->
             LegDto(
                 id = rs.getLong("id"),
