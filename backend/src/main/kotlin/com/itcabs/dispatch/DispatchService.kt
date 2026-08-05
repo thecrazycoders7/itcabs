@@ -271,11 +271,15 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         ) ?: false
         if (!eligible) throw forbidden("Not eligible: verify KYC + phone, go on-duty, and clear pending no-shows.")
 
-        // Anti-hoarding (P0): one live trip at a time. Friendly pre-check; NOT EXISTS below makes it atomic.
-        val active = db.queryForObject(
+        // Anti-hoarding (P0): one live trip at a time across BOTH legs and company jobs.
+        // Friendly pre-check; the NOT EXISTS conditions below make it atomic.
+        val active = (db.queryForObject(
             "SELECT count(*) FROM legs WHERE claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')",
             MapSqlParameterSource("d", driverId), Int::class.java,
-        ) ?: 0
+        ) ?: 0) + (db.queryForObject(
+            "SELECT count(*) FROM company_jobs WHERE claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')",
+            MapSqlParameterSource("d", driverId), Int::class.java,
+        ) ?: 0)
         if (active >= MAX_ACTIVE_CLAIMS) throw conflict("Finish your current trip before claiming another.")
 
         // Fairness offer-window (#7): during the window, only clean-record (0 no-shows) drivers may claim.
@@ -298,7 +302,8 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
                              WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified
                                    AND p.available AND p.no_shows < :maxns)
-                 AND NOT EXISTS (SELECT 1 FROM legs x WHERE x.claimed_by=:d AND x.status IN ('CLAIMED','CONFIRMED'))""",
+                 AND NOT EXISTS (SELECT 1 FROM legs x WHERE x.claimed_by=:d AND x.status IN ('CLAIMED','CONFIRMED'))
+                 AND NOT EXISTS (SELECT 1 FROM company_jobs y WHERE y.claimed_by=:d AND y.status IN ('CLAIMED','CONFIRMED'))""",
             MapSqlParameterSource().addValue("d", driverId).addValue("id", legId)
                 .addValue("otp", newOtp()).addValue("maxns", MAX_NO_SHOWS),
         )

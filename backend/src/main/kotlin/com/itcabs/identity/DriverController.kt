@@ -88,6 +88,55 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         )
     }
 
+    /**
+     * The driver's earnings across BOTH single legs and company jobs: total settled, still-owed,
+     * this-week, trip count, and the last 20 completed trips. Money everywhere is paise (never float).
+     */
+    @GetMapping("/driver/earnings")
+    fun earnings(req: HttpServletRequest): Map<String, Any?> {
+        val uid = requireUserId(req)
+        val p = MapSqlParameterSource("u", uid)
+        val agg = db.queryForList(
+            """WITH t AS (
+                   SELECT fare_paise, paid_at FROM legs WHERE claimed_by=:u AND status='COMPLETED'
+                   UNION ALL
+                   SELECT fare_paise, paid_at FROM company_jobs WHERE claimed_by=:u AND status='COMPLETED'
+               )
+               SELECT coalesce(sum(fare_paise) FILTER (WHERE paid_at IS NOT NULL),0)                       AS earned,
+                      coalesce(sum(fare_paise) FILTER (WHERE paid_at IS NULL),0)                           AS pending,
+                      count(*)                                                                             AS trips,
+                      coalesce(sum(fare_paise) FILTER (WHERE paid_at >= now() - interval '7 days'),0)      AS week
+                 FROM t""",
+            p,
+        ).first()
+        val recent = db.queryForList(
+            """SELECT label, kind, fare_paise, (paid_at IS NOT NULL) AS paid, coalesce(paid_at, created_at) AS ts
+                 FROM (
+                   SELECT pickup AS label, 'LEG' AS kind, fare_paise, paid_at, created_at
+                     FROM legs WHERE claimed_by=:u AND status='COMPLETED'
+                   UNION ALL
+                   SELECT company_name AS label, 'COMPANY' AS kind, fare_paise, paid_at, created_at
+                     FROM company_jobs WHERE claimed_by=:u AND status='COMPLETED'
+                 ) x ORDER BY ts DESC LIMIT 20""",
+            p,
+        ).map {
+            mapOf(
+                "label" to (it["label"] ?: ""),
+                "kind" to it["kind"],
+                "amountPaise" to (it["fare_paise"] as Number).toLong(),
+                "paid" to (it["paid"] as Boolean),
+                "date" to it["ts"].toString(),
+            )
+        }
+        return mapOf(
+            "totalEarnedPaise" to (agg["earned"] as Number).toLong(),
+            "pendingPaise" to (agg["pending"] as Number).toLong(),
+            "tripsCompleted" to (agg["trips"] as Number).toInt(),
+            "thisWeekPaise" to (agg["week"] as Number).toLong(),
+            "recent" to recent,
+        )
+    }
+
     /** A driver's public profile — shown to a coordinator once a driver takes/gets their job. */
     @GetMapping("/drivers/{id}/profile")
     fun publicProfile(req: HttpServletRequest, @PathVariable id: Long): Map<String, Any?> {

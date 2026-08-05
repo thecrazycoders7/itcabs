@@ -44,6 +44,22 @@ class DriverRepositoryImpl(
     override suspend fun setAvailability(available: Boolean): AppResult<Unit> =
         api.setAvailability(AvailabilityDto(available)).asResult { }
 
+    override suspend fun earnings(): AppResult<com.itcabs.domain.model.DriverEarnings> =
+        api.earnings().asResult { d ->
+            com.itcabs.domain.model.DriverEarnings(
+                totalEarnedPaise = d.totalEarnedPaise,
+                pendingPaise = d.pendingPaise,
+                tripsCompleted = d.tripsCompleted,
+                thisWeekPaise = d.thisWeekPaise,
+                recent = d.recent.map {
+                    com.itcabs.domain.model.RecentEarning(
+                        label = it.label, isCompany = it.kind == "COMPANY",
+                        amountPaise = it.amountPaise, paid = it.paid, date = it.date,
+                    )
+                },
+            )
+        }
+
     override suspend fun verifyPhone(idToken: String): AppResult<Unit> =
         api.verifyPhone(com.itcabs.core.network.dto.PhoneVerifyDto(idToken)).asResult { }
 

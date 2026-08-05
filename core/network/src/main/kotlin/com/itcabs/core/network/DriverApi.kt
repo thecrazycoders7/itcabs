@@ -19,6 +19,9 @@ interface DriverApi {
     @GET("api/v1/driver/me")
     suspend fun me(): Response<DriverProfileDto>
 
+    @GET("api/v1/driver/earnings")
+    suspend fun earnings(): Response<com.itcabs.core.network.dto.EarningsDto>
+
     @POST("api/v1/driver/availability")
     suspend fun setAvailability(@Body body: AvailabilityDto): Response<Map<String, Boolean>>
 

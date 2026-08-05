@@ -17,6 +17,24 @@ data class DriverProfile(
     val phoneVerified: Boolean = false,
 )
 
+/** A driver's earnings across legs + company jobs. Money in paise. */
+data class DriverEarnings(
+    val totalEarnedPaise: Long = 0,
+    val pendingPaise: Long = 0,
+    val tripsCompleted: Int = 0,
+    val thisWeekPaise: Long = 0,
+    val recent: List<RecentEarning> = emptyList(),
+)
+
+/** One completed trip in the earnings history. */
+data class RecentEarning(
+    val label: String,
+    val isCompany: Boolean,
+    val amountPaise: Long,
+    val paid: Boolean,
+    val date: String?,
+)
+
 /** One uploaded KYC document + its review state. status: UPLOADED / REUPLOAD_REQUESTED. */
 data class KycDoc(
     val docType: String,

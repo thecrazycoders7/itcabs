@@ -17,6 +17,9 @@ interface DriverRepository {
     /** The signed-in driver's own KYC status + vehicle + reliability + rating. */
     suspend fun myProfile(): AppResult<DriverProfile>
 
+    /** The driver's earnings (legs + company jobs): totals, this week, recent trips. */
+    suspend fun earnings(): AppResult<com.itcabs.domain.model.DriverEarnings>
+
     /** Toggle whether this driver receives new-trip pushes. */
     suspend fun setAvailability(available: Boolean): AppResult<Unit>
 

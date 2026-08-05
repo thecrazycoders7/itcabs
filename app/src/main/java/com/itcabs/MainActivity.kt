@@ -37,7 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,7 @@ import com.itcabs.feature.dispatch.AdminScreen
 import com.itcabs.feature.dispatch.CompanyJobsScreen
 import com.itcabs.feature.dispatch.CoordinatorHomeScreen
 import com.itcabs.feature.dispatch.DriverCompanyScreen
+import com.itcabs.feature.dispatch.DriverEarningsScreen
 import com.itcabs.feature.dispatch.DriverFeedScreen
 import com.itcabs.feature.dispatch.MyTripsScreen
 import com.itcabs.feature.dispatch.StatsScreen
@@ -281,12 +284,15 @@ private fun DriverHome(startTab: Int = 0, onSignOut: () -> Unit) {
             }
         },
     ) { padding ->
+        var showEarnings by rememberSaveable { mutableStateOf(false) }
         Crossfade(targetState = tab, animationSpec = tween(200), modifier = Modifier.padding(padding), label = "driverTab") { t ->
             when (t) {
                 0 -> DriverFeedScreen()
                 1 -> MyTripsScreen()
                 2 -> DriverCompanyScreen()
-                else -> ProfileScreen(onSignOut = onSignOut)
+                else ->
+                    if (showEarnings) DriverEarningsScreen(onBack = { showEarnings = false })
+                    else ProfileScreen(onSignOut = onSignOut, onViewEarnings = { showEarnings = true })
             }
         }
     }

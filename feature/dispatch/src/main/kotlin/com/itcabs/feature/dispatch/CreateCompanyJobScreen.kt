@@ -122,7 +122,10 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, editJob: com.itcabs.domain.model.
                 }
             }
             AutocompleteActivity.RESULT_ERROR -> {
+                // The overlay opens then closes on its own — surface WHY loudly (usually "Places API
+                // legacy not enabled", billing off, or key/SHA-1 restriction) instead of a silent back.
                 placesError = res.data?.let { Autocomplete.getStatusFromIntent(it).statusMessage } ?: "Places error"
+                android.widget.Toast.makeText(context, "Maps: $placesError", android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -130,6 +133,7 @@ fun CreateCompanyJobScreen(onDone: () -> Unit, editJob: com.itcabs.domain.model.
         // Never crash if the Maps/Places key is missing (empty-key build): degrade to a message.
         if (!Places.isInitialized()) {
             placesError = "Address search unavailable — maps key not configured in this build."
+            android.widget.Toast.makeText(context, placesError, android.widget.Toast.LENGTH_LONG).show()
             return
         }
         searchIndex = i

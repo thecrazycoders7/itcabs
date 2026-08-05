@@ -26,6 +26,25 @@ data class PhoneVerifyDto(val idToken: String)
 @Serializable
 data class KycDocInputDto(val docType: String, val storagePath: String)
 
+/** GET /driver/earnings — settled/pending totals across legs + company jobs, with recent trips. */
+@Serializable
+data class EarningsDto(
+    val totalEarnedPaise: Long = 0,
+    val pendingPaise: Long = 0,
+    val tripsCompleted: Int = 0,
+    val thisWeekPaise: Long = 0,
+    val recent: List<RecentEarningDto> = emptyList(),
+)
+
+@Serializable
+data class RecentEarningDto(
+    val label: String = "",
+    val kind: String = "LEG",          // LEG or COMPANY
+    val amountPaise: Long = 0,
+    val paid: Boolean = false,
+    val date: String? = null,
+)
+
 /** GET /admin/coordinators/pending — a coordinator awaiting approval. */
 @Serializable
 data class PendingCoordinatorDto(val id: Long, val name: String? = null, val email: String? = null)

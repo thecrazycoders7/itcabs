@@ -29,9 +29,11 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
         }
         val jobId = db.queryForObject(
             """INSERT INTO company_jobs(coordinator_id, company_name, trip_type, office, office_address,
-                     office_lat, office_lng, office_place_id, pickup_time, drop_time, vehicle_type, vehicle_ac, fare_paise, publish_at)
-               VALUES (:c,:cn,:tt,:o,:oa,:olat,:olng,:opid,:pt,:dt,:vt,:ac,:fp, coalesce(:pa, now())) RETURNING id""",
-            jobParams(coordinatorId, tripType, input).addValue("pa", publishAt?.let { java.sql.Timestamp.from(it.toInstant()) }),
+                     office_lat, office_lng, office_place_id, pickup_time, drop_time, vehicle_type, vehicle_ac, fare_paise, publish_at, offer_until)
+               VALUES (:c,:cn,:tt,:o,:oa,:olat,:olng,:opid,:pt,:dt,:vt,:ac,:fp, coalesce(:pa, now()),
+                       coalesce(:pa, now()) + make_interval(secs => :ow)) RETURNING id""",
+            jobParams(coordinatorId, tripType, input).addValue("pa", publishAt?.let { java.sql.Timestamp.from(it.toInstant()) })
+                .addValue("ow", DispatchService.OFFER_WINDOW_SECONDS),
             Long::class.java,
         )!!
         insertStops(jobId, input.stops)
@@ -176,8 +178,13 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
         val vt = db.queryForList("SELECT vehicle_type FROM driver_profiles WHERE user_id=:d", MapSqlParameterSource("d", driverId))
             .firstOrNull()?.get("vehicle_type") as? String
         val where = StringBuilder("j.status='OPEN' AND j.publish_at <= now()")
-        val params = MapSqlParameterSource()
+        val params = MapSqlParameterSource().addValue("d", driverId)
         if (!vt.isNullOrBlank()) { where.append(" AND upper(j.vehicle_type) = upper(:vt)"); params.addValue("vt", vt) }
+        // Fairness offer-window (#7): during a live job's window, only clean-record drivers see it.
+        where.append(
+            " AND (j.offer_until IS NULL OR j.offer_until <= now()" +
+                " OR (SELECT no_shows FROM driver_profiles WHERE user_id = :d) = 0)",
+        )
         where.append(" ORDER BY j.created_at DESC")
         return jobsWhere(where.toString(), params, forCoordinator = false)
     }
@@ -188,20 +195,52 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
     /** First-claim-wins on the whole job; generates a per-stop OTP the driver must collect from each employee. */
     @Transactional
     fun claim(driverId: Long, jobId: Long): CompanyJobDto {
+        // Eligibility (P1): active, KYC + phone verified, on-duty, not a repeat no-show.
+        // Pre-check gives a precise message; the UPDATE re-checks the same rules atomically.
         val eligible = db.queryForObject(
             """SELECT EXISTS(SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
-            MapSqlParameterSource("d", driverId), Boolean::class.java,
+               WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified
+                     AND p.available AND p.no_shows < :maxns)""",
+            MapSqlParameterSource().addValue("d", driverId).addValue("maxns", DispatchService.MAX_NO_SHOWS),
+            Boolean::class.java,
         ) ?: false
-        if (!eligible) throw forbidden("driver not verified")
+        if (!eligible) throw forbidden("Not eligible: verify KYC + phone, go on-duty, and clear pending no-shows.")
+
+        // Anti-hoarding (P0): one live trip at a time across BOTH legs and company jobs.
+        val active = (db.queryForObject(
+            "SELECT count(*) FROM legs WHERE claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')",
+            MapSqlParameterSource("d", driverId), Int::class.java,
+        ) ?: 0) + (db.queryForObject(
+            "SELECT count(*) FROM company_jobs WHERE claimed_by=:d AND status IN ('CLAIMED','CONFIRMED')",
+            MapSqlParameterSource("d", driverId), Int::class.java,
+        ) ?: 0)
+        if (active >= DispatchService.MAX_ACTIVE_CLAIMS) throw conflict("Finish your current trip before claiming another.")
+
+        // Fairness offer-window (#7): during the window, only clean-record drivers may claim.
+        val reservedForPriority = db.queryForObject(
+            """SELECT (j.offer_until > now()) AND (p.no_shows > 0)
+                 FROM company_jobs j, driver_profiles p WHERE j.id=:id AND p.user_id=:d""",
+            MapSqlParameterSource().addValue("id", jobId).addValue("d", driverId), Boolean::class.java,
+        ) ?: false
+        if (reservedForPriority) throw conflict("Reserved for top-rated drivers for a few more seconds — try again shortly.")
+
+        // Atomic first-claim-wins. Re-checks eligibility, enforces vehicle-type match (P0), the offer
+        // window (#7), and the one-active-trip cap (NOT EXISTS across both tables) so simultaneous taps can't exceed it.
         val won = db.update(
             """UPDATE company_jobs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), version=version+1
                WHERE id=:id AND status='OPEN'
+                 AND (vehicle_type='' OR upper(vehicle_type) = upper((SELECT vehicle_type FROM driver_profiles WHERE user_id=:d)))
+                 AND (offer_until IS NULL OR offer_until <= now()
+                      OR (SELECT no_shows FROM driver_profiles WHERE user_id=:d) = 0)
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
-                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified)""",
-            MapSqlParameterSource().addValue("d", driverId).addValue("id", jobId),
+                             WHERE u.id=:d AND u.status='ACTIVE' AND p.kyc_status='VERIFIED' AND u.phone_verified
+                                   AND p.available AND p.no_shows < :maxns)
+                 AND NOT EXISTS (SELECT 1 FROM legs x WHERE x.claimed_by=:d AND x.status IN ('CLAIMED','CONFIRMED'))
+                 AND NOT EXISTS (SELECT 1 FROM company_jobs y WHERE y.claimed_by=:d AND y.status IN ('CLAIMED','CONFIRMED'))""",
+            MapSqlParameterSource().addValue("d", driverId).addValue("id", jobId)
+                .addValue("maxns", DispatchService.MAX_NO_SHOWS),
         )
-        if (won == 0) throw conflict("job already taken")
+        if (won == 0) throw conflict("No longer available — already taken, wrong vehicle type, or you have an active trip.")
         assignStopOtps(jobId)
         return oneJob(driverId, jobId, forCoordinator = false)
     }
@@ -217,6 +256,27 @@ class CompanyJobService(private val db: NamedParameterJdbcTemplate) {
         val expected = row["pickup_otp"] as? String
         if (expected != null && otp?.trim() != expected) throw badRequest("wrong pickup code")
         db.update("UPDATE job_stops SET picked_up_at = now() WHERE id = :s", MapSqlParameterSource("s", stopId))
+    }
+
+    /**
+     * P1: auto-release stale company claims. A driver who claims but never starts (no stop picked up)
+     * within [DispatchService.STALE_CLAIM_MINUTES] loses the job back to the OPEN pool so a flaky driver
+     * can't lock a corporate job out of the market. Driven by the scheduled sweep. Returns count released.
+     */
+    @Transactional
+    fun releaseStaleClaims(): Int {
+        val ids = db.queryForList(
+            """SELECT j.id FROM company_jobs j
+                WHERE j.status='CLAIMED'
+                  AND j.claimed_at < now() - make_interval(mins => :mins)
+                  AND NOT EXISTS (SELECT 1 FROM job_stops s WHERE s.job_id=j.id AND s.picked_up_at IS NOT NULL)""",
+            MapSqlParameterSource("mins", DispatchService.STALE_CLAIM_MINUTES), Long::class.java,
+        )
+        ids.forEach { jobId ->
+            db.update("UPDATE company_jobs SET status='OPEN', claimed_by=NULL, claimed_at=NULL, version=version+1 WHERE id=:id", MapSqlParameterSource("id", jobId))
+            db.update("UPDATE job_stops SET pickup_otp=NULL, picked_up_at=NULL WHERE job_id=:id", MapSqlParameterSource("id", jobId))
+        }
+        return ids.size
     }
 
     // --- helpers ---

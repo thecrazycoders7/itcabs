@@ -32,6 +32,7 @@ import com.itcabs.domain.model.KycStatus
 @Composable
 fun ProfileScreen(
     onSignOut: () -> Unit,
+    onViewEarnings: (() -> Unit)? = null,   // driver only; coordinators don't earn
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val user by viewModel.user.collectAsState()
@@ -91,6 +92,12 @@ fun ProfileScreen(
                     if (p.ratingCount > 0 && p.avgRating != null) "★ %.1f".format(p.avgRating) else "—",
                     Modifier.weight(1f),
                 )
+            }
+        }
+
+        onViewEarnings?.let {
+            androidx.compose.material3.Button(onClick = it, modifier = Modifier.fillMaxWidth()) {
+                Text("View earnings")
             }
         }
 
