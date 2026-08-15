@@ -235,7 +235,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
             )
         }
         if (!area.isNullOrBlank()) { where.append(" AND l.area = :ar"); params.addValue("ar", area) }
-        if (!vehicleType.isNullOrBlank()) { where.append(" AND l.vehicle_type = :vt"); params.addValue("vt", vehicleType) }
+        if (!vehicleType.isNullOrBlank()) { where.append(" AND upper(trim(l.vehicle_type)) = upper(trim(:vt))"); params.addValue("vt", vehicleType) }
         where.append(
             if (lat != null && lng != null) " ORDER BY distance_km NULLS LAST, l.created_at DESC"
             else " ORDER BY l.created_at DESC",
@@ -296,7 +296,7 @@ class DispatchService(private val db: NamedParameterJdbcTemplate) {
         val won = db.update(
             """UPDATE legs SET status='CLAIMED', claimed_by=:d, claimed_at=now(), pickup_otp=:otp, version=version+1
                WHERE id=:id AND status='OPEN'
-                 AND (vehicle_type='' OR vehicle_type = (SELECT vehicle_type FROM driver_profiles WHERE user_id=:d))
+                 AND (vehicle_type='' OR upper(trim(vehicle_type)) = upper(trim((SELECT vehicle_type FROM driver_profiles WHERE user_id=:d))))
                  AND (offer_until IS NULL OR offer_until <= now()
                       OR (SELECT no_shows FROM driver_profiles WHERE user_id=:d) = 0)
                  AND EXISTS (SELECT 1 FROM users u JOIN driver_profiles p ON p.user_id=u.id
