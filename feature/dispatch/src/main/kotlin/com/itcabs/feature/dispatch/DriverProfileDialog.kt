@@ -60,6 +60,10 @@ fun DriverProfileDialog(driverId: Long, onDismiss: () -> Unit, viewModel: Driver
             val prof = p
             if (prof == null) Text("Loading…")
             else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Face photo so the coordinator sees who they're dispatching.
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    NetworkPhoto(prof.photoUrl, size = 84.dp)
+                }
                 Line("Rating", if (prof.ratingCount > 0 && prof.avgRating != null) "★ %.1f (%d)".format(prof.avgRating, prof.ratingCount) else "—")
                 Line("Trips completed", prof.tripsCompleted.toString())
                 Line("No-shows", prof.noShows.toString())

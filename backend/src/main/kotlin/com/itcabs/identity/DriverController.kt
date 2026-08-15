@@ -37,6 +37,8 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
             "SELECT kyc_status FROM driver_profiles WHERE user_id = :u", MapSqlParameterSource("u", uid),
         ).firstOrNull()?.get("kyc_status")
         if (pending == "PENDING") throw com.itcabs.shared.badRequest("your KYC is already under review")
+        // A public face photo is mandatory (riders/coordinators must see who's driving).
+        if (body.photoUrl.isBlank()) throw com.itcabs.shared.badRequest("add your photo before submitting")
         // All required documents must be uploaded before review.
         val have = db.queryForList(
             "SELECT doc_type FROM kyc_documents WHERE user_id = :u", MapSqlParameterSource("u", uid),

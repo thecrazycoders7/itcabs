@@ -71,6 +71,8 @@ class DriverRepositoryImpl(
             is AppResult.Err -> up
         }
 
+    override suspend fun uploadDriverPhoto(jpeg: ByteArray): AppResult<String> = storage.uploadPublicPhoto(jpeg)
+
     override suspend fun myKycDocs(): AppResult<List<com.itcabs.domain.model.KycDoc>> =
         api.myKycDocs().asResult { list ->
             list.map { com.itcabs.domain.model.KycDoc(it.docType, it.storagePath, it.status, it.rejectReason) }

@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -108,6 +109,9 @@ fun DriverKycScreen(onDone: () -> Unit, viewModel: DriverKycViewModel = hiltView
 
         // 1. Phone verification (Firebase Phone Auth) — required before submitting KYC.
         PhoneVerifySection(state, viewModel)
+
+        // 2. Face photo (public) — riders/coordinators must see who's driving.
+        PhotoSection(state, viewModel)
 
         Text("Vehicle type", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -229,6 +233,60 @@ private fun CheckLine(done: Boolean, label: String) {
         Text(if (done) "✓" else "○", color = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         Text(label, style = MaterialTheme.typography.bodyMedium,
             color = if (done) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Face photo
+// ---------------------------------------------------------------------------------------------
+
+/** Driver's public face photo: circular preview + camera/gallery, compressed + uploaded on pick. */
+@Composable
+private fun PhotoSection(state: DriverKycUiState, viewModel: DriverKycViewModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var previewUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraUriStr by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun handle(uri: Uri) {
+        previewUri = uri.toString()
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) { compressImage(context, uri) }
+            if (bytes != null) viewModel.uploadPhoto(bytes) else viewModel.photoReadError()
+        }
+    }
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let(::handle) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) cameraUriStr?.let(Uri::parse)?.let(::handle)
+    }
+
+    Text("Your photo", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.size(72.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            val ui = previewUri?.let(Uri::parse)
+            when {
+                ui != null -> {
+                    val bmp by produceState<Bitmap?>(null, ui) { value = withContext(Dispatchers.IO) { decodeThumb(context, ui, 200) } }
+                    bmp?.let { Image(it.asImageBitmap(), null, Modifier.size(72.dp).clip(androidx.compose.foundation.shape.CircleShape), contentScale = ContentScale.Crop) }
+                        ?: CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+                else -> Text("🧑", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            when {
+                state.photoUploading -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp); Text("Uploading…", style = MaterialTheme.typography.bodySmall)
+                }
+                state.photoUrl != null -> Text("Photo added ✓", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                else -> Text("A clear photo of your face.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            state.photoError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { val u = newCameraUri(context); cameraUriStr = u.toString(); camera.launch(u) }) { Text("Camera") }
+                OutlinedButton(onClick = { gallery.launch("image/*") }) { Text("Gallery") }
+            }
+        }
     }
 }
 

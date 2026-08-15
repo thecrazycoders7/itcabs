@@ -48,6 +48,9 @@ data class DriverKycUiState(
     val aadhaar: String = "",
     val rcNumber: String = "",
     val docs: Map<String, DocUi> = KYC_DOC_DEFS.associate { it.type to DocUi() },
+    val photoUrl: String? = null,          // public face photo URL once uploaded
+    val photoUploading: Boolean = false,
+    val photoError: String? = null,
     val kycStatus: com.itcabs.domain.model.KycStatus = com.itcabs.domain.model.KycStatus.NONE,
     val rejectionReason: String? = null,
     val loading: Boolean = false,
@@ -60,9 +63,9 @@ data class DriverKycUiState(
     val allDocsUploaded: Boolean
         get() = uploadedCount == KYC_DOC_DEFS.size
 
-    // Phone verified + all documents uploaded + vehicle/identity fields (spec).
+    // Phone verified + photo + all documents + vehicle/identity fields.
     val canSubmit: Boolean
-        get() = phoneVerified && allDocsUploaded &&
+        get() = phoneVerified && photoUrl != null && allDocsUploaded &&
             vehicleType.isNotBlank() && vehicleReg.isNotBlank() && aadhaar.length >= 4 && rcNumber.isNotBlank()
 }
 
@@ -108,6 +111,23 @@ class DriverKycViewModel @Inject constructor(
     /** Surface a client-side error (e.g. the image couldn't be read) on one document slot. */
     fun docError(type: String, msg: String) = setDoc(type, DocUi(DocStatus.MISSING, error = msg))
 
+    /** Upload the driver's face photo to the public bucket; stores the URL for submit. */
+    fun uploadPhoto(jpeg: ByteArray) {
+        _state.update { it.copy(photoUploading = true, photoError = null) }
+        viewModelScope.launch {
+            runCatching { driver.uploadDriverPhoto(jpeg) }
+                .onSuccess { r ->
+                    when (r) {
+                        is AppResult.Ok -> _state.update { it.copy(photoUploading = false, photoUrl = r.value) }
+                        is AppResult.Err -> _state.update { it.copy(photoUploading = false, photoError = r.message) }
+                    }
+                }
+                .onFailure { e -> _state.update { it.copy(photoUploading = false, photoError = e.message ?: "Upload failed") } }
+        }
+    }
+
+    fun photoReadError() = _state.update { it.copy(photoUploading = false, photoError = "Couldn't read that image — try another.") }
+
     /** Upload compressed JPEG bytes for one document; overwrites any prior upload (replace). */
     fun uploadDoc(type: String, jpeg: ByteArray) {
         setDoc(type, DocUi(DocStatus.UPLOADING))
@@ -152,6 +172,7 @@ class DriverKycViewModel @Inject constructor(
         if (!s.canSubmit) {
             val msg = when {
                 !s.phoneVerified -> "Verify your phone first."
+                s.photoUrl == null -> "Add your photo first."
                 !s.allDocsUploaded -> "Upload all documents first."
                 else -> "Fill vehicle, registration, Aadhaar, and RC."
             }
@@ -166,7 +187,7 @@ class DriverKycViewModel @Inject constructor(
                     aadhaarRef = "REF_" + s.aadhaar,
                     aadhaarMasked = "********" + s.aadhaar.takeLast(4),
                     rcNumberMasked = "********" + s.rcNumber.takeLast(4),
-                    photoUrl = "",
+                    photoUrl = s.photoUrl ?: "",
                 )
             ) {
                 // Show the "Under Review" screen in place of the form (spec) rather than navigating away.

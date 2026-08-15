@@ -51,6 +51,34 @@ class SupabaseStorage(
         }
     }
 
+    /**
+     * Upload a driver's public-facing photo to the PUBLIC `driver-photos` bucket and return its public
+     * URL. Unlike KYC docs (private), a driver's face photo is meant to be seen by coordinators/riders,
+     * so it lives in a public-read bucket. Folder is the driver's uid (RLS write-scoped).
+     */
+    suspend fun uploadPublicPhoto(jpeg: ByteArray): AppResult<String> {
+        val access = tokens.accessToken() ?: return AppResult.Err(0, "Sign in again to upload")
+        val uid = subOf(access) ?: return AppResult.Err(0, "Sign in again to upload")
+        val path = "$uid/photo.jpg"
+        val req = Request.Builder()
+            .url("${supabaseUrl.trimEnd('/')}/storage/v1/object/$PHOTO_BUCKET/$path")
+            .addHeader("Authorization", "Bearer $access")
+            .addHeader("apikey", anonKey)
+            .addHeader("x-upsert", "true")
+            .post(jpeg.toRequestBody("image/jpeg".toMediaType()))
+            .build()
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                client.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        // Public URL + cache-buster so a replaced photo shows immediately.
+                        AppResult.Ok("${supabaseUrl.trimEnd('/')}/storage/v1/object/public/$PHOTO_BUCKET/$path?v=${System.currentTimeMillis()}")
+                    } else AppResult.Err(resp.code, uploadError(resp.code, resp.body?.string()))
+                }
+            }.getOrElse { AppResult.Err(0, it.message ?: "Upload failed") }
+        }
+    }
+
     /** A short-lived signed URL for a private object (admin review). RLS must permit the caller to read it. */
     suspend fun signedUrl(path: String, expiresInSec: Int = 300): AppResult<String> {
         val access = tokens.accessToken() ?: return AppResult.Err(0, "Sign in again")
@@ -89,5 +117,8 @@ class SupabaseStorage(
         else -> "Upload failed (${code})"
     }
 
-    private companion object { const val BUCKET = "kyc-docs" }
+    private companion object {
+        const val BUCKET = "kyc-docs"
+        const val PHOTO_BUCKET = "driver-photos"
+    }
 }

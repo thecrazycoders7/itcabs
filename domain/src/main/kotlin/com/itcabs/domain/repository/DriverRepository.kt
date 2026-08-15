@@ -29,6 +29,9 @@ interface DriverRepository {
     /** Upload one KYC document (jpeg bytes) to private storage and register it for review. */
     suspend fun uploadKycDoc(docType: String, jpeg: ByteArray): AppResult<Unit>
 
+    /** Upload the driver's public face photo (jpeg bytes); returns its public URL to save on the profile. */
+    suspend fun uploadDriverPhoto(jpeg: ByteArray): AppResult<String>
+
     /** The driver's uploaded documents + per-doc review state. */
     suspend fun myKycDocs(): AppResult<List<com.itcabs.domain.model.KycDoc>>
 
