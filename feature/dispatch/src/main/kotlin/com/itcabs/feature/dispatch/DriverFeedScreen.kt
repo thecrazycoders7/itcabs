@@ -189,6 +189,15 @@ fun DriverFeedContent(
                 ) { Text("Complete KYC") }
             }
         }
+        // Verified but off-duty → explain why Claim is unavailable.
+        if (state.kycStatus == KycStatus.VERIFIED && !state.available) {
+            Text(
+                "You're offline — turn Online on (top right) to claim trips.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
         state.notice?.let { NoticeBar(it, onDismiss = onDismissNotice) }
         state.error?.let {
             Text(

@@ -30,8 +30,8 @@ data class DriverFeedUiState(
     val vehicleFilter: String? = null,
     val minFareRupees: String = "",
 ) {
-    /** Only a verified driver may claim. Allow while status is still unknown (backend re-checks). */
-    val canClaim: Boolean get() = kycStatus == null || kycStatus == KycStatus.VERIFIED
+    /** Only a verified, on-duty driver may claim. Allow while status is still unknown (backend re-checks). */
+    val canClaim: Boolean get() = (kycStatus == null || kycStatus == KycStatus.VERIFIED) && available
 
     /** Legs after the driver's vehicle + min-fare preferences. */
     val visibleLegs: List<Leg>

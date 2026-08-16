@@ -175,7 +175,7 @@ class DriverController(private val db: NamedParameterJdbcTemplate, private val p
         requireAdmin(req, db)
         return db.queryForList(
             """SELECT u.id, u.name, u.email, p.vehicle_type, p.vehicle_reg,
-                      p.aadhaar_masked, p.rc_number_masked
+                      p.aadhaar_masked, p.rc_number_masked, p.photo_url
                  FROM driver_profiles p JOIN users u ON u.id = p.user_id
                 WHERE p.kyc_status = 'PENDING'
                 ORDER BY u.id""",

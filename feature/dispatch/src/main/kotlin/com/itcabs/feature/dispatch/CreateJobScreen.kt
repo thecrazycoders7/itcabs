@@ -78,7 +78,13 @@ fun CreateJobScreen(
         Card {
             SectionLabel("LOGISTICS SETUP")
             LabeledField("SHIFT", state.shift, viewModel::onShiftChange, "e.g. Login 09:00")
-            LabeledField("VEHICLE TYPE", state.vehicleType, viewModel::onVehicleChange, "Sedan / SUV / Tempo")
+            SectionLabel("VEHICLE TYPE")
+            // Constrained to the same options a driver picks at KYC, so a leg can never be posted with
+            // a vehicle type no driver matches.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(state.vehicleType.equals("SEDAN", true), { viewModel.onVehicleChange("SEDAN") }, label = { Text("Sedan") })
+                FilterChip(state.vehicleType.equals("SUV", true), { viewModel.onVehicleChange("SUV") }, label = { Text("SUV") })
+            }
         }
 
         Row(

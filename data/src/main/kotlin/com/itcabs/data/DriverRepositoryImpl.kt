@@ -92,7 +92,7 @@ class DriverRepositoryImpl(
     override suspend fun pendingDrivers(): AppResult<List<PendingDriver>> =
         api.pendingDrivers().asResult { list ->
             list.map {
-                PendingDriver(it.id, it.name ?: "", it.email, it.vehicleType, it.vehicleReg, it.aadhaarMasked, it.rcNumberMasked)
+                PendingDriver(it.id, it.name ?: "", it.email, it.vehicleType, it.vehicleReg, it.aadhaarMasked, it.rcNumberMasked, it.photoUrl)
             }
         }
 

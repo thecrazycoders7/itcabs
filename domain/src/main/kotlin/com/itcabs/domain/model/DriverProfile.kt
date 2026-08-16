@@ -78,4 +78,5 @@ data class PendingDriver(
     val vehicleReg: String?,
     val aadhaarMasked: String?,
     val rcNumberMasked: String?,
+    val photoUrl: String? = null,
 )

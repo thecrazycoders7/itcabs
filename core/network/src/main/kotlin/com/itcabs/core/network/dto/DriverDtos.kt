@@ -102,4 +102,5 @@ data class PendingDriverDto(
     @SerialName("vehicle_reg") val vehicleReg: String? = null,
     @SerialName("aadhaar_masked") val aadhaarMasked: String? = null,
     @SerialName("rc_number_masked") val rcNumberMasked: String? = null,
+    @SerialName("photo_url") val photoUrl: String? = null,
 )

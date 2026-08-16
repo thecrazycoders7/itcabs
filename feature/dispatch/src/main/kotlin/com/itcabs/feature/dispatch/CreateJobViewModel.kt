@@ -28,7 +28,7 @@ data class LegForm(
 data class CreateJobUiState(
     val office: String = "",
     val shift: String = "",
-    val vehicleType: String = "Sedan",
+    val vehicleType: String = "SEDAN",
     val legs: List<LegForm> = listOf(LegForm()),
     val areas: List<String> = emptyList(),
     /** Hours from now to schedule the job; 0 = post immediately. */

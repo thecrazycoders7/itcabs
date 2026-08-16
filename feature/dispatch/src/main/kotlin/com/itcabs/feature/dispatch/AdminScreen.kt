@@ -161,7 +161,10 @@ private fun PendingDriverCard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(driver.name.ifBlank { "(no name)" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            NetworkPhoto(driver.photoUrl, size = 56.dp)   // verify the face matches the documents
+            Text(driver.name.ifBlank { "(no name)" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
         driver.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         val vehicle = listOfNotNull(driver.vehicleType, driver.vehicleReg).joinToString(" · ")
         if (vehicle.isNotBlank()) Text(vehicle, style = MaterialTheme.typography.bodyMedium)
