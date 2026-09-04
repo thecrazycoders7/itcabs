@@ -26,6 +26,15 @@ data class Ride(
     val myOtp: String?,             // this rider's pickup code, if booked
 )
 
+/** A rider who booked the host's ride. */
+data class RideRider(
+    val riderId: Long,
+    val riderName: String,
+    val riderPhone: String?,
+    val seats: Int,
+    val status: String,
+)
+
 /** A ride a host is about to offer. */
 data class NewRide(
     val origin: String,

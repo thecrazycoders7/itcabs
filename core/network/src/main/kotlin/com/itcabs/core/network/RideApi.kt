@@ -35,6 +35,9 @@ interface RideApi {
     @GET("api/v1/rides/{id}")
     suspend fun detail(@Path("id") id: Long): Response<RideDto>
 
+    @GET("api/v1/rides/{id}/riders")
+    suspend fun riders(@Path("id") id: Long): Response<List<com.itcabs.core.network.dto.RideRiderDto>>
+
     @POST("api/v1/rides/{id}/book")
     suspend fun book(@Path("id") id: Long, @Body body: BookInputDto): Response<RideDto>
 

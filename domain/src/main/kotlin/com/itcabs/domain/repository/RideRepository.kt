@@ -11,6 +11,7 @@ interface RideRepository {
     suspend fun myRides(): AppResult<List<Ride>>
     suspend fun myBookings(): AppResult<List<Ride>>
     suspend fun detail(rideId: Long): AppResult<Ride>
+    suspend fun riders(rideId: Long): AppResult<List<com.itcabs.domain.model.RideRider>>
     suspend fun book(rideId: Long, seats: Int): AppResult<Ride>
     suspend fun cancelBooking(rideId: Long): AppResult<Unit>
     suspend fun confirmPickup(rideId: Long, riderId: Long, otp: String): AppResult<Unit>

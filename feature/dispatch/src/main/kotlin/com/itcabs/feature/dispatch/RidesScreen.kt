@@ -65,7 +65,7 @@ fun RidesScreen(viewModel: RidesViewModel = hiltViewModel()) {
         when (tab) {
             0 -> FindTab(state, onBook = { id -> viewModel.book(id, 1) }, onRefresh = viewModel::refresh)
             1 -> OfferTab(state, onPost = { r -> viewModel.create(r) { tab = 2 } })
-            2 -> MyRidesTab(state, onStart = { viewModel.setStatus(it, "STARTED") }, onComplete = { viewModel.setStatus(it, "COMPLETED") })
+            2 -> MyRidesTab(state, onStart = { viewModel.setStatus(it, "STARTED") }, onComplete = { viewModel.setStatus(it, "COMPLETED") }, onLoadRiders = viewModel::loadRiders, onConfirmPickup = viewModel::confirmPickup)
             else -> BookingsTab(state, onCancel = viewModel::cancelBooking)
         }
     }
@@ -144,14 +144,34 @@ private fun OfferTab(state: RidesUiState, onPost: (NewRide) -> Unit) {
 }
 
 @Composable
-private fun MyRidesTab(state: RidesUiState, onStart: (Long) -> Unit, onComplete: (Long) -> Unit) {
+private fun MyRidesTab(
+    state: RidesUiState,
+    onStart: (Long) -> Unit,
+    onComplete: (Long) -> Unit,
+    onLoadRiders: (Long) -> Unit,
+    onConfirmPickup: (Long, Long, String) -> Unit,
+) {
     if (state.myRides.isEmpty()) { Empty("You haven't offered any rides yet.", null); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(state.myRides, key = { it.id }) { ride ->
+            var showRiders by remember(ride.id) { mutableStateOf(false) }
+            val ctx = LocalContext.current
             RideCard(ride, showHost = false) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${ride.totalSeats - ride.seatsLeft}/${ride.totalSeats} booked · ${ride.status}",
-                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${ride.totalSeats - ride.seatsLeft}/${ride.totalSeats} booked · ${ride.status}",
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(
+                    onClick = { showRiders = !showRiders; if (showRiders) onLoadRiders(ride.id) },
+                    contentPadding = PaddingValues(0.dp),
+                ) { Text(if (showRiders) "Hide riders" else "View riders") }
+                if (showRiders) {
+                    val riders = state.riders[ride.id]
+                    when {
+                        riders == null -> Text("Loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        riders.isEmpty() -> Text("No bookings yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            riders.forEach { RiderRow(it, onCall = { p -> dialPhone(ctx, p) }, onConfirm = { otp -> onConfirmPickup(ride.id, it.riderId, otp) }) }
+                        }
+                    }
                 }
                 when (ride.status) {
                     "OPEN", "FULL" -> Button(onClick = { onStart(ride.id) }) { Text("Start ride") }
@@ -159,6 +179,41 @@ private fun MyRidesTab(state: RidesUiState, onStart: (Long) -> Unit, onComplete:
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RiderRow(rider: com.itcabs.domain.model.RideRider, onCall: (String) -> Unit, onConfirm: (String) -> Unit) {
+    var askOtp by remember { mutableStateOf(false) }
+    var otp by remember { mutableStateOf("") }
+    if (askOtp) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askOtp = false },
+            title = { Text("Confirm ${rider.riderName.ifBlank { "rider" }} boarded") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ask the rider for their 4-digit pickup code.")
+                    OutlinedTextField(otp, { if (it.length <= 4) otp = it.filter(Char::isDigit) }, label = { Text("Pickup code") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+            },
+            confirmButton = { TextButton(onClick = { askOtp = false; onConfirm(otp) }, enabled = otp.length == 4) { Text("Confirm") } },
+            dismissButton = { TextButton(onClick = { askOtp = false }) { Text("Cancel") } },
+        )
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(rider.riderName.ifBlank { "Rider" }, style = MaterialTheme.typography.bodyMedium)
+            Text("${rider.seats} seat(s)" + if (rider.status == "COMPLETED") " · boarded ✓" else "",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        rider.riderPhone?.takeIf { it.isNotBlank() }?.let { TextButton(onClick = { onCall(it) }) { Text("Call") } }
+        if (rider.status == "CONFIRMED") TextButton(onClick = { askOtp = true }) { Text("Pickup") }
+    }
+}
+
+private fun dialPhone(context: android.content.Context, phone: String) {
+    runCatching {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$phone")))
     }
 }
 

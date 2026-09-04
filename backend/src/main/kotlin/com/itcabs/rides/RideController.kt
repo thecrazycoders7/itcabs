@@ -32,6 +32,9 @@ class RideController(private val rides: RideService, private val push: PushServi
     @GetMapping("/{id}")
     fun detail(req: HttpServletRequest, @PathVariable id: Long) = rides.detail(requireUserId(req), id)
 
+    @GetMapping("/{id}/riders")
+    fun riders(req: HttpServletRequest, @PathVariable id: Long) = rides.riders(requireUserId(req), id)
+
     @PostMapping("/{id}/book")
     fun book(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: BookInput): Map<String, Any?> {
         val me = requireUserId(req)

@@ -110,6 +110,29 @@ class RideService(private val db: NamedParameterJdbcTemplate) {
             MapSqlParameterSource("me", riderId),
         ).map(::row)
 
+    /** The host's view of who booked their ride (name + phone to coordinate + confirm pickup). */
+    fun riders(hostId: Long, rideId: Long): List<Map<String, Any?>> {
+        val owns = db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM rides WHERE id=:id AND host_id=:h)",
+            MapSqlParameterSource().addValue("id", rideId).addValue("h", hostId), Boolean::class.java,
+        ) ?: false
+        if (!owns) throw forbidden("not your ride")
+        return db.queryForList(
+            """SELECT b.rider_id, u.name AS rider_name, u.phone AS rider_phone, b.seats, b.status
+                 FROM ride_bookings b JOIN users u ON u.id=b.rider_id
+                WHERE b.ride_id=:id AND b.status<>'CANCELLED' ORDER BY b.created_at""",
+            MapSqlParameterSource("id", rideId),
+        ).map {
+            mapOf(
+                "riderId" to (it["rider_id"] as Number).toLong(),
+                "riderName" to (it["rider_name"] ?: ""),
+                "riderPhone" to it["rider_phone"],
+                "seats" to (it["seats"] as Number).toInt(),
+                "status" to it["status"],
+            )
+        }
+    }
+
     /** Book seats atomically: succeeds only if the ride is OPEN and enough seats remain. */
     @Transactional
     fun book(riderId: Long, rideId: Long, seats: Int): Map<String, Any?> {

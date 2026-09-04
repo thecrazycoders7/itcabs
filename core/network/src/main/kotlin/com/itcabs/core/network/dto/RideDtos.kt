@@ -46,6 +46,15 @@ data class RideInputDto(
 )
 
 @Serializable
+data class RideRiderDto(
+    val riderId: Long = 0,
+    val riderName: String = "",
+    val riderPhone: String? = null,
+    val seats: Int = 1,
+    val status: String = "CONFIRMED",
+)
+
+@Serializable
 data class BookInputDto(val seats: Int = 1)
 
 @Serializable

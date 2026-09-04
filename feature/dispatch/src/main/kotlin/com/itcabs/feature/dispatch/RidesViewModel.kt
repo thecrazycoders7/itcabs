@@ -25,6 +25,7 @@ data class RidesUiState(
     val error: String? = null,
     val notice: String? = null,
     val myGender: String? = null,
+    val riders: Map<Long, List<com.itcabs.domain.model.RideRider>> = emptyMap(),
 )
 
 /** Backs the carpooling screen: browse/book rides, offer a ride, manage my rides + bookings. */
@@ -60,6 +61,22 @@ class RidesViewModel @Inject constructor(
             when (val r = rides.create(input)) {
                 is AppResult.Ok -> { _state.update { it.copy(posting = false, notice = "Ride posted") }; refresh(); onDone() }
                 is AppResult.Err -> _state.update { it.copy(posting = false, error = r.message) }
+            }
+        }
+    }
+
+    fun loadRiders(rideId: Long) {
+        viewModelScope.launch {
+            (rides.riders(rideId) as? AppResult.Ok)?.let { r -> _state.update { it.copy(riders = it.riders + (rideId to r.value)) } }
+        }
+    }
+
+    fun confirmPickup(rideId: Long, riderId: Long, otp: String) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val r = rides.confirmPickup(rideId, riderId, otp)) {
+                is AppResult.Ok -> loadRiders(rideId)
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
             }
         }
     }

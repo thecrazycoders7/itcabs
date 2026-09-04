@@ -28,6 +28,10 @@ class RideRepositoryImpl(private val api: RideApi) : RideRepository {
     override suspend fun myRides(): AppResult<List<Ride>> = api.mine().asResult { l -> l.map { it.toDomain() } }
     override suspend fun myBookings(): AppResult<List<Ride>> = api.bookings().asResult { l -> l.map { it.toDomain() } }
     override suspend fun detail(rideId: Long): AppResult<Ride> = api.detail(rideId).asResult { it.toDomain() }
+    override suspend fun riders(rideId: Long): AppResult<List<com.itcabs.domain.model.RideRider>> =
+        api.riders(rideId).asResult { list ->
+            list.map { com.itcabs.domain.model.RideRider(it.riderId, it.riderName, it.riderPhone, it.seats, it.status) }
+        }
     override suspend fun book(rideId: Long, seats: Int): AppResult<Ride> = api.book(rideId, BookInputDto(seats)).asResult { it.toDomain() }
     override suspend fun cancelBooking(rideId: Long): AppResult<Unit> = api.cancelBooking(rideId).asResult { }
     override suspend fun confirmPickup(rideId: Long, riderId: Long, otp: String): AppResult<Unit> =
