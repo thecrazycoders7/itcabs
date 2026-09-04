@@ -199,6 +199,32 @@ class RideService(private val db: NamedParameterJdbcTemplate) {
         )
     }
 
+    /** Two-way rating after a completed ride: rider rates host, host rates each boarded rider. */
+    fun rate(raterId: Long, rideId: Long, rateeId: Long, stars: Int, review: String?) {
+        if (stars !in 1..5) throw badRequest("stars must be 1–5")
+        if (rateeId == raterId) throw badRequest("you can't rate yourself")
+        val ride = db.queryForList("SELECT host_id, status FROM rides WHERE id=:id", MapSqlParameterSource("id", rideId))
+            .firstOrNull() ?: throw badRequest("ride not found")
+        if (ride["status"] != "COMPLETED") throw badRequest("you can rate once the ride is completed")
+        val hostId = (ride["host_id"] as Number).toLong()
+        fun isRider(u: Long) = db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM ride_bookings WHERE ride_id=:id AND rider_id=:u AND status IN ('CONFIRMED','COMPLETED'))",
+            MapSqlParameterSource().addValue("id", rideId).addValue("u", u), Boolean::class.java,
+        ) ?: false
+        val validPair = (raterId == hostId && isRider(rateeId)) || (isRider(raterId) && rateeId == hostId)
+        if (!validPair) throw forbidden("you can only rate someone you shared this ride with")
+        // Idempotent: replace any prior rating for this (ride, rater, ratee).
+        db.update(
+            "DELETE FROM ratings WHERE ride_id=:ride AND rater_id=:rater AND ratee_id=:ratee",
+            MapSqlParameterSource().addValue("ride", rideId).addValue("rater", raterId).addValue("ratee", rateeId),
+        )
+        db.update(
+            "INSERT INTO ratings(ride_id, rater_id, ratee_id, stars, review) VALUES (:ride,:rater,:ratee,:s,:rev)",
+            MapSqlParameterSource().addValue("ride", rideId).addValue("rater", raterId)
+                .addValue("ratee", rateeId).addValue("s", stars).addValue("rev", review),
+        )
+    }
+
     private fun genderOf(userId: Long): String? = db.queryForList(
         "SELECT gender FROM users WHERE id=:u", MapSqlParameterSource("u", userId),
     ).firstOrNull()?.get("gender") as? String

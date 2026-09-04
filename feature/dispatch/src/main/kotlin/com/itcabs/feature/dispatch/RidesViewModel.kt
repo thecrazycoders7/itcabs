@@ -81,6 +81,16 @@ class RidesViewModel @Inject constructor(
         }
     }
 
+    fun rate(rideId: Long, rateeId: Long, stars: Int, review: String?) {
+        _state.update { it.copy(error = null) }
+        viewModelScope.launch {
+            when (val r = rides.rate(rideId, rateeId, stars, review)) {
+                is AppResult.Ok -> _state.update { it.copy(notice = "Thanks for rating!") }
+                is AppResult.Err -> _state.update { it.copy(error = r.message) }
+            }
+        }
+    }
+
     fun book(rideId: Long, seats: Int) = act { rides.book(rideId, seats).map() }
     fun cancelBooking(rideId: Long) = act { rides.cancelBooking(rideId) }
     fun setStatus(rideId: Long, status: String) = act { rides.setStatus(rideId, status) }

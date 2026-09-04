@@ -61,4 +61,7 @@ data class BookInputDto(val seats: Int = 1)
 data class PickupInputDto(val riderId: Long, val otp: String)
 
 @Serializable
+data class RateInputDto(val rateeId: Long, val stars: Int, val review: String? = null)
+
+@Serializable
 data class RideStatusInputDto(val status: String)

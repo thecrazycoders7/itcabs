@@ -47,6 +47,9 @@ interface RideApi {
     @POST("api/v1/rides/{id}/pickup")
     suspend fun pickup(@Path("id") id: Long, @Body body: PickupInputDto): Response<Map<String, Boolean>>
 
+    @POST("api/v1/rides/{id}/rate")
+    suspend fun rate(@Path("id") id: Long, @Body body: com.itcabs.core.network.dto.RateInputDto): Response<Map<String, Boolean>>
+
     @POST("api/v1/rides/{id}/status")
     suspend fun status(@Path("id") id: Long, @Body body: RideStatusInputDto): Response<Map<String, String>>
 }

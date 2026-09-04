@@ -53,6 +53,11 @@ class RideController(private val rides: RideService, private val push: PushServi
         rides.confirmPickup(requireUserId(req), id, body.riderId, body.otp); return mapOf("ok" to true)
     }
 
+    @PostMapping("/{id}/rate")
+    fun rate(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: RateInput): Map<String, Any> {
+        rides.rate(requireUserId(req), id, body.rateeId, body.stars, body.review); return mapOf("ok" to true)
+    }
+
     @PostMapping("/{id}/status")
     fun status(req: HttpServletRequest, @PathVariable id: Long, @RequestBody body: RideStatusInput): Map<String, Any> {
         rides.setStatus(requireUserId(req), id, body.status.uppercase()); return mapOf("status" to body.status.uppercase())
@@ -61,3 +66,4 @@ class RideController(private val rides: RideService, private val push: PushServi
 
 data class PickupInput(val riderId: Long, val otp: String)
 data class RideStatusInput(val status: String)
+data class RateInput(val rateeId: Long, val stars: Int, val review: String? = null)

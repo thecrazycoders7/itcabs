@@ -15,5 +15,6 @@ interface RideRepository {
     suspend fun book(rideId: Long, seats: Int): AppResult<Ride>
     suspend fun cancelBooking(rideId: Long): AppResult<Unit>
     suspend fun confirmPickup(rideId: Long, riderId: Long, otp: String): AppResult<Unit>
+    suspend fun rate(rideId: Long, rateeId: Long, stars: Int, review: String?): AppResult<Unit>
     suspend fun setStatus(rideId: Long, status: String): AppResult<Unit>
 }

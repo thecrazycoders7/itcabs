@@ -36,6 +36,8 @@ class RideRepositoryImpl(private val api: RideApi) : RideRepository {
     override suspend fun cancelBooking(rideId: Long): AppResult<Unit> = api.cancelBooking(rideId).asResult { }
     override suspend fun confirmPickup(rideId: Long, riderId: Long, otp: String): AppResult<Unit> =
         api.pickup(rideId, PickupInputDto(riderId, otp)).asResult { }
+    override suspend fun rate(rideId: Long, rateeId: Long, stars: Int, review: String?): AppResult<Unit> =
+        api.rate(rideId, com.itcabs.core.network.dto.RateInputDto(rateeId, stars, review)).asResult { }
     override suspend fun setStatus(rideId: Long, status: String): AppResult<Unit> =
         api.status(rideId, RideStatusInputDto(status)).asResult { }
 }
