@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +58,7 @@ import com.itcabs.feature.dispatch.CoordinatorHomeScreen
 import com.itcabs.feature.dispatch.DriverCompanyScreen
 import com.itcabs.feature.dispatch.DriverEarningsScreen
 import com.itcabs.feature.dispatch.DriverFeedScreen
+import com.itcabs.feature.dispatch.RidesScreen
 import com.itcabs.feature.dispatch.MyTripsScreen
 import com.itcabs.feature.dispatch.StatsScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -147,7 +149,7 @@ private fun LogoTitle(text: String) {
 @Composable
 private fun RoleHome(role: UserRole, isAdmin: Boolean, coordinatorPending: Boolean, route: String?, onSignOut: () -> Unit) {
     when (role) {
-        UserRole.DRIVER -> DriverHome(startTab = if (route == "driver_company") 2 else 0, onSignOut = onSignOut)
+        UserRole.DRIVER -> DriverHome(startTab = if (route == "driver_company") 3 else 0, onSignOut = onSignOut)
         UserRole.COORDINATOR ->
             if (coordinatorPending) CoordinatorAwaitingScreen(onSignOut)
             else CoordinatorHome(isAdmin, startTab = if (route == "coordinator_company") 1 else 0, onSignOut = onSignOut)
@@ -243,9 +245,10 @@ private fun DriverHome(startTab: Int = 0, onSignOut: () -> Unit) {
     // Back from a non-first tab returns to the first tab instead of exiting the app.
     BackHandler(enabled = tab != 0) { tab = 0 }
     val title = when (tab) {
-        0 -> "Available Trips"
-        1 -> "My Trips"
-        2 -> "Company Trips"
+        0 -> "Carpool"
+        1 -> "Available Trips"
+        2 -> "My Trips"
+        3 -> "Company Trips"
         else -> "Profile"
     }
     Scaffold(
@@ -260,24 +263,30 @@ private fun DriverHome(startTab: Int = 0, onSignOut: () -> Unit) {
                 NavigationBarItem(
                     selected = tab == 0,
                     onClick = { tab = 0 },
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                    label = { Text("Available") },
+                    icon = { Icon(Icons.Filled.Groups, contentDescription = null) },
+                    label = { Text("Carpool") },
                 )
                 NavigationBarItem(
                     selected = tab == 1,
                     onClick = { tab = 1 },
-                    icon = { Icon(Icons.Filled.DirectionsCar, contentDescription = null) },
-                    label = { Text("My Trips") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                    label = { Text("Available") },
                 )
                 NavigationBarItem(
                     selected = tab == 2,
                     onClick = { tab = 2 },
-                    icon = { Icon(Icons.Filled.Business, contentDescription = null) },
-                    label = { Text("Company") },
+                    icon = { Icon(Icons.Filled.DirectionsCar, contentDescription = null) },
+                    label = { Text("My Trips") },
                 )
                 NavigationBarItem(
                     selected = tab == 3,
                     onClick = { tab = 3 },
+                    icon = { Icon(Icons.Filled.Business, contentDescription = null) },
+                    label = { Text("Company") },
+                )
+                NavigationBarItem(
+                    selected = tab == 4,
+                    onClick = { tab = 4 },
                     icon = { Icon(Icons.Filled.Person, contentDescription = null) },
                     label = { Text("Profile") },
                 )
@@ -287,9 +296,10 @@ private fun DriverHome(startTab: Int = 0, onSignOut: () -> Unit) {
         var showEarnings by rememberSaveable { mutableStateOf(false) }
         Crossfade(targetState = tab, animationSpec = tween(200), modifier = Modifier.padding(padding), label = "driverTab") { t ->
             when (t) {
-                0 -> DriverFeedScreen()
-                1 -> MyTripsScreen()
-                2 -> DriverCompanyScreen()
+                0 -> RidesScreen()
+                1 -> DriverFeedScreen()
+                2 -> MyTripsScreen()
+                3 -> DriverCompanyScreen()
                 else ->
                     if (showEarnings) DriverEarningsScreen(onBack = { showEarnings = false })
                     else ProfileScreen(onSignOut = onSignOut, onViewEarnings = { showEarnings = true })
