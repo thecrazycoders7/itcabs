@@ -26,11 +26,11 @@ android {
         // Debug default: emulator → host loopback for the local dev backend.
         buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8081/\"")
         // Supabase Auth. The anon key is a publishable client key (RLS-protected), safe to embed.
-        buildConfigField("String", "SUPABASE_URL", "\"https://wjorulwjpjgpeudecjwn.supabase.co\"")
+        buildConfigField("String", "SUPABASE_URL", "\"https://ncdqrgsnbgxgdjnyidxl.supabase.co\"")
         buildConfigField(
             "String",
             "SUPABASE_ANON_KEY",
-            "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indqb3J1bHdqcGpncGV1ZGVjanduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3OTA3MjAsImV4cCI6MjEwMDM2NjcyMH0.-2UBgqBBKYTWcV4Jzo7PMKIdjbdsa4oniDsxYk3cT40\"",
+            "\"sb_publishable_CflMF6RADxiE-JSN1NQ9rQ_RS7B5rk2\"",
         )
         // Google sign-in: the Web OAuth client id (public) used by Credential Manager to fetch an ID token.
         buildConfigField(
