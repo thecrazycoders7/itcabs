@@ -64,6 +64,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun rideApi(tokenStore: TokenStore): com.itcabs.core.network.RideApi =
+        NetworkFactory.rideApi(BuildConfig.BASE_URL, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, tokenStore, debug = BuildConfig.DEBUG)
+
+    @Provides
+    @Singleton
+    fun rideRepository(api: com.itcabs.core.network.RideApi): com.itcabs.domain.repository.RideRepository =
+        com.itcabs.data.RideRepositoryImpl(api)
+
+    @Provides
+    @Singleton
     fun deviceIdProvider(@ApplicationContext context: Context): DeviceIdProvider =
         PersistentDeviceId(context)
 

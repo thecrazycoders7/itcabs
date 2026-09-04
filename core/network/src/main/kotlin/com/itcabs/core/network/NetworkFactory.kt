@@ -23,6 +23,9 @@ object NetworkFactory {
     fun driverApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): DriverApi =
         retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(DriverApi::class.java)
 
+    fun rideApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): RideApi =
+        retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(RideApi::class.java)
+
     fun pushApi(baseUrl: String, supabaseUrl: String, anonKey: String, session: TokenSession, debug: Boolean = false): PushApi =
         retrofit(baseUrl, supabaseUrl, anonKey, session, debug).create(PushApi::class.java)
 
