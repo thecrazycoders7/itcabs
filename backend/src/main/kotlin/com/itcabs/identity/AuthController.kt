@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*
 data class OnboardInput(
     val role: String,
     val name: String? = null,
+    val gender: String? = null,
     // Coordinators may capture their company + office once here; prefilled into new jobs.
     val companyName: String? = null,
     val officeAddress: String? = null,
@@ -32,7 +33,7 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         requireAuthId(req) // 401 if not authenticated
         val uid = req.getAttribute(USER_ID_ATTR) as? Long ?: return mapOf("onboarded" to false)
         return db.queryForList(
-            "SELECT id, phone, email, role, name, status, is_admin, coordinator_status FROM users WHERE id = :id",
+            "SELECT id, phone, email, role, name, status, is_admin, coordinator_status, gender FROM users WHERE id = :id",
             MapSqlParameterSource("id", uid),
         ).first() + mapOf("onboarded" to true)
     }
@@ -65,11 +66,11 @@ class AuthController(private val db: NamedParameterJdbcTemplate) {
         // New coordinators start PENDING (admin must approve before they can post trips); drivers APPROVED.
         val coordStatus = if (role == "COORDINATOR") "PENDING" else "APPROVED"
         val id = db.queryForObject(
-            """INSERT INTO users(auth_id, email, role, name, coordinator_status,
+            """INSERT INTO users(auth_id, email, role, name, coordinator_status, gender,
                                  company_name, office_address, office_lat, office_lng, office_place_id)
-               VALUES (:a,:e,:r,:n,:cs,:cn,:oa,:olat,:olng,:opid) RETURNING id""",
+               VALUES (:a,:e,:r,:n,:cs,:g,:cn,:oa,:olat,:olng,:opid) RETURNING id""",
             MapSqlParameterSource().addValue("a", authId).addValue("e", emailOf(req))
-                .addValue("r", role).addValue("n", body.name ?: "").addValue("cs", coordStatus)
+                .addValue("r", role).addValue("n", body.name ?: "").addValue("cs", coordStatus).addValue("g", body.gender)
                 .addValue("cn", body.companyName).addValue("oa", body.officeAddress)
                 .addValue("olat", body.officeLat).addValue("olng", body.officeLng).addValue("opid", body.officePlaceId),
             Long::class.java,

@@ -15,6 +15,7 @@ data class UserEntity(
     val status: String,
     val isAdmin: Boolean = false,
     val coordinatorStatus: String = "APPROVED",
+    val gender: String? = null,
 )
 
 fun UserEntity.toDomain() = User(
@@ -25,6 +26,7 @@ fun UserEntity.toDomain() = User(
     status = UserStatus.valueOf(status),
     isAdmin = isAdmin,
     coordinatorStatus = coordinatorStatus,
+    gender = gender,
 )
 
 fun User.toEntity() = UserEntity(
@@ -35,4 +37,5 @@ fun User.toEntity() = UserEntity(
     status = status.name,
     isAdmin = isAdmin,
     coordinatorStatus = coordinatorStatus,
+    gender = gender,
 )

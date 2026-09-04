@@ -56,11 +56,11 @@ class AuthRepositoryImpl(
             else dto.toUser().also { userDao.insertUser(it.toEntity()) }
         }
 
-    override suspend fun onboard(role: UserRole, name: String?): AppResult<User> =
-        backend.onboard(OnboardInputDto(role.name, name)).asResult { dto ->
+    override suspend fun onboard(role: UserRole, name: String?, gender: String?): AppResult<User> =
+        backend.onboard(OnboardInputDto(role.name, name, gender)).asResult { dto ->
             User(
                 dto.userId, phone = "", role = UserRole.valueOf(dto.role), name = name ?: "",
-                status = UserStatus.ACTIVE, coordinatorStatus = dto.coordinatorStatus ?: "APPROVED",
+                status = UserStatus.ACTIVE, coordinatorStatus = dto.coordinatorStatus ?: "APPROVED", gender = gender,
             ).also { userDao.insertUser(it.toEntity()) }
         }
 
@@ -78,4 +78,5 @@ private fun MeDto.toUser() = User(
     status = UserStatus.valueOf(status ?: "ACTIVE"),
     isAdmin = isAdmin,
     coordinatorStatus = coordinatorStatus ?: "APPROVED",
+    gender = gender,
 )

@@ -62,6 +62,7 @@ class RideService(private val db: NamedParameterJdbcTemplate) {
             MapSqlParameterSource("h", hostId), Boolean::class.java,
         ) ?: false
         if (!vetted) throw forbidden("Verify your phone + complete KYC before offering rides.")
+        if (input.womenOnly && genderOf(hostId) != "FEMALE") throw forbidden("Only women can host a women-only ride.")
         if (input.origin.isBlank() || input.destination.isBlank()) throw badRequest("origin and destination required")
         if (input.totalSeats !in 1..6) throw badRequest("seats must be 1–6")
         if (input.pricePaise < 0) throw badRequest("price must be >= 0")
@@ -117,9 +118,11 @@ class RideService(private val db: NamedParameterJdbcTemplate) {
             "SELECT coalesce(phone_verified,false) FROM users WHERE id=:r", MapSqlParameterSource("r", riderId), Boolean::class.java,
         ) ?: false
         if (!phoneOk) throw forbidden("Verify your phone before booking a ride.")
-        val host = db.queryForList("SELECT host_id FROM rides WHERE id=:id", MapSqlParameterSource("id", rideId))
-            .firstOrNull()?.get("host_id") as? Number ?: throw badRequest("ride not found")
-        if (host.toLong() == riderId) throw badRequest("you can't book your own ride")
+        val ride = db.queryForList("SELECT host_id, women_only FROM rides WHERE id=:id", MapSqlParameterSource("id", rideId))
+            .firstOrNull() ?: throw badRequest("ride not found")
+        if ((ride["host_id"] as Number).toLong() == riderId) throw badRequest("you can't book your own ride")
+        if ((ride["women_only"] as? Boolean == true) && genderOf(riderId) != "FEMALE")
+            throw forbidden("This is a women-only ride.")
         val n = db.update(
             """INSERT INTO ride_bookings(ride_id, rider_id, seats, status, pickup_otp)
                SELECT :id, :r, :s, 'CONFIRMED', :otp
@@ -172,6 +175,10 @@ class RideService(private val db: NamedParameterJdbcTemplate) {
             MapSqlParameterSource("id", rideId),
         )
     }
+
+    private fun genderOf(userId: Long): String? = db.queryForList(
+        "SELECT gender FROM users WHERE id=:u", MapSqlParameterSource("u", userId),
+    ).firstOrNull()?.get("gender") as? String
 
     private fun newOtp(): String = "%04d".format((0..9999).random())
 }

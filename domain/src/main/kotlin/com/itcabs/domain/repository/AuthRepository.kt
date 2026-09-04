@@ -29,7 +29,7 @@ interface AuthRepository {
     suspend fun currentUser(): AppResult<User?>
 
     /** First-time setup after sign-in: pick role (+ name). Creates the domain user. */
-    suspend fun onboard(role: UserRole, name: String?): AppResult<User>
+    suspend fun onboard(role: UserRole, name: String?, gender: String?): AppResult<User>
 
     /** Clears the stored session (local sign-out). */
     suspend fun signOut()

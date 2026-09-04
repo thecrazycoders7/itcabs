@@ -116,12 +116,22 @@ private fun SignIn(state: AuthUiState, vm: AuthViewModel, onGoogle: () -> Unit) 
 
 @Composable
 private fun Onboard(state: AuthUiState, vm: AuthViewModel) {
-    Text("Welcome! What's your name?", style = MaterialTheme.typography.titleMedium)
+    Text("Welcome! Tell us about you", style = MaterialTheme.typography.titleMedium)
     OutlinedTextField(
         value = state.name, onValueChange = vm::onNameChange, label = { Text("Your name") },
         singleLine = true, modifier = Modifier.fillMaxWidth(),
     )
-    Button(onClick = vm::onboard, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Continue") }
+    Text("Gender (used for women-only rides)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("FEMALE" to "Female", "MALE" to "Male", "OTHER" to "Other").forEach { (v, label) ->
+            FilterChip(state.gender == v, { vm.onGenderChange(v) }, label = { Text(label) })
+        }
+    }
+    Button(
+        onClick = vm::onboard,
+        enabled = !state.loading && state.name.isNotBlank() && state.gender != null,
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text("Continue") }
     Text(
         "Book a seat with just a verified phone. To offer rides, you'll verify your phone and upload your documents.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

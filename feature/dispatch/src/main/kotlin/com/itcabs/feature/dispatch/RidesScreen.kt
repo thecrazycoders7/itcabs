@@ -119,7 +119,7 @@ private fun OfferTab(state: RidesUiState, onPost: (NewRide) -> Unit) {
         }
         item { OutlinedTextField(price, { price = it.filter(Char::isDigit) }, label = { Text("Price per seat (₹)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)) }
         item { OutlinedTextField(car, { car = it }, label = { Text("Car (e.g. Swift, white)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
-        item {
+        if (state.myGender == "FEMALE") item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Switch(checked = womenOnly, onCheckedChange = { womenOnly = it })
                 Text("Women-only ride", style = MaterialTheme.typography.bodyMedium)
@@ -167,12 +167,16 @@ private fun BookingsTab(state: RidesUiState, onCancel: (Long) -> Unit) {
     if (state.myBookings.isEmpty()) { Empty("You haven't booked any rides yet.", null); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(state.myBookings, key = { it.id }) { ride ->
+            val ctx = LocalContext.current
             RideCard(ride) {
                 ride.myOtp?.let {
                     Text("Show host your code: $it", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 }
-                if (ride.myBookingStatus == "CONFIRMED" && ride.status in setOf("OPEN", "FULL")) {
-                    OutlinedButton(onClick = { onCancel(ride.id) }) { Text("Cancel booking") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { shareTrip(ctx, ride) }) { Text("Share trip") }
+                    if (ride.myBookingStatus == "CONFIRMED" && ride.status in setOf("OPEN", "FULL")) {
+                        OutlinedButton(onClick = { onCancel(ride.id) }) { Text("Cancel booking") }
+                    }
                 }
             }
         }
@@ -219,6 +223,22 @@ private fun Empty(msg: String, onRefresh: (() -> Unit)?) {
         Text(msg, color = MaterialTheme.colorScheme.onSurfaceVariant)
         onRefresh?.let { TextButton(onClick = it) { Text("Refresh") } }
     }
+}
+
+/** Share a booked trip with family/friends via any app (safety). */
+private fun shareTrip(context: android.content.Context, ride: Ride) {
+    val text = buildString {
+        append("I'm taking a carpool ride.\n")
+        append("From: ${ride.origin}\nTo: ${ride.destination}\n")
+        ride.departAt?.let { append("When: ${it.take(16).replace('T', ' ')}\n") }
+        append("Host: ${ride.hostName}")
+        if (ride.carModel.isNotBlank()) append(" (${ride.carModel})")
+        append("\nShared from ITCABS.")
+    }
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(android.content.Intent.createChooser(send, "Share trip"))
 }
 
 /** Chained date → time picker → an OffsetDateTime in the device zone. */

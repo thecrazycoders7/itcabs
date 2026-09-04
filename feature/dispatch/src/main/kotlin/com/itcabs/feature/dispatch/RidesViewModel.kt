@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.itcabs.domain.AppResult
 import com.itcabs.domain.model.NewRide
 import com.itcabs.domain.model.Ride
+import com.itcabs.domain.repository.AuthRepository
 import com.itcabs.domain.repository.RideRepository
+import kotlinx.coroutines.flow.first
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,15 +24,22 @@ data class RidesUiState(
     val posting: Boolean = false,
     val error: String? = null,
     val notice: String? = null,
+    val myGender: String? = null,
 )
 
 /** Backs the carpooling screen: browse/book rides, offer a ride, manage my rides + bookings. */
 @HiltViewModel
-class RidesViewModel @Inject constructor(private val rides: RideRepository) : ViewModel() {
+class RidesViewModel @Inject constructor(
+    private val rides: RideRepository,
+    private val auth: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow(RidesUiState())
     val state: StateFlow<RidesUiState> = _state.asStateFlow()
 
-    init { refresh() }
+    init {
+        refresh()
+        viewModelScope.launch { auth.getUserFlow().first()?.let { u -> _state.update { it.copy(myGender = u.gender) } } }
+    }
 
     fun refresh() {
         _state.update { it.copy(loading = true, error = null) }

@@ -54,6 +54,7 @@ data class MeDto(
     val status: String? = null,
     @SerialName("is_admin") val isAdmin: Boolean = false,
     @SerialName("coordinator_status") val coordinatorStatus: String? = null,
+    val gender: String? = null,
 )
 
 /** Generic "ignore the body, just tell me it succeeded" response. Unknown keys are ignored. */
@@ -64,6 +65,7 @@ data class OkDto(val ok: Boolean = false)
 data class OnboardInputDto(
     val role: String,
     val name: String? = null,
+    val gender: String? = null,
     val companyName: String? = null,
     val officeAddress: String? = null,
     val officeLat: Double? = null,

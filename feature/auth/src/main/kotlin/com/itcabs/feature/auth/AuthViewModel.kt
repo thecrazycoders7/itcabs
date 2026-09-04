@@ -19,6 +19,7 @@ data class AuthUiState(
     val password: String = "",
     val name: String = "",
     val role: UserRole = UserRole.DRIVER,
+    val gender: String? = null,
     val step: Step = Step.SignIn,
     val loading: Boolean = false,
     val error: String? = null,
@@ -45,6 +46,7 @@ class AuthViewModel @Inject constructor(
     fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null) }
     fun onNameChange(v: String) = _state.update { it.copy(name = v) }
     fun onRoleChange(r: UserRole) = _state.update { it.copy(role = r) }
+    fun onGenderChange(g: String) = _state.update { it.copy(gender = g) }
 
     /** [idToken] comes from Credential Manager (Google). */
     fun signInWithGoogle(idToken: String) = launchLoading {
@@ -85,7 +87,7 @@ class AuthViewModel @Inject constructor(
         val s = _state.value
         // Carpooling has one persona: a "member" who can host or book rides. We onboard everyone under
         // the DRIVER role so hosting reuses the existing KYC/driver_profiles; booking only needs a phone.
-        when (val r = auth.onboard(UserRole.DRIVER, s.name.ifBlank { null })) {
+        when (val r = auth.onboard(UserRole.DRIVER, s.name.ifBlank { null }, s.gender)) {
             is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true, signedInRole = UserRole.DRIVER) }
             is AppResult.Err -> fail(r.message)
         }
