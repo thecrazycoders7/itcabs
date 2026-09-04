@@ -197,6 +197,11 @@ private fun RideCard(ride: Ride, showHost: Boolean = true, actions: @Composable 
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (showHost) {
+            // Cash model: the host sets the price, the rider pays the host directly. The app never collects.
+            Text(
+                "Pay ${formatRupees(ride.pricePaise)}/seat to the host directly (cash/UPI). ITCABS doesn't collect payments.",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Divider()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 NetworkPhoto(ride.hostPhotoUrl, size = 40.dp)
