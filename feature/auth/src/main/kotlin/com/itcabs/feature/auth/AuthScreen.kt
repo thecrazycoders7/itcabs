@@ -116,20 +116,14 @@ private fun SignIn(state: AuthUiState, vm: AuthViewModel, onGoogle: () -> Unit) 
 
 @Composable
 private fun Onboard(state: AuthUiState, vm: AuthViewModel) {
-    Text("Welcome! Tell us who you are.", style = MaterialTheme.typography.titleMedium)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(state.role == UserRole.COORDINATOR, { vm.onRoleChange(UserRole.COORDINATOR) }, label = { Text("Coordinator") })
-        FilterChip(state.role == UserRole.DRIVER, { vm.onRoleChange(UserRole.DRIVER) }, label = { Text("Driver") })
-    }
+    Text("Welcome! What's your name?", style = MaterialTheme.typography.titleMedium)
     OutlinedTextField(
         value = state.name, onValueChange = vm::onNameChange, label = { Text("Your name") },
         singleLine = true, modifier = Modifier.fillMaxWidth(),
     )
     Button(onClick = vm::onboard, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Continue") }
-    if (state.role == UserRole.DRIVER) {
-        Text(
-            "Next you'll verify your phone and upload your documents to start driving.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    Text(
+        "Book a seat with just a verified phone. To offer rides, you'll verify your phone and upload your documents.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

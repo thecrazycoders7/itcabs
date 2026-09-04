@@ -83,11 +83,10 @@ class AuthViewModel @Inject constructor(
 
     fun onboard() = launchLoading {
         val s = _state.value
-        // Onboarding just assigns the role and drops the user into the app. Drivers land with
-        // kycStatus=NONE and complete the real KYC (phone OTP + documents) from DriverKycScreen —
-        // the backend's /driver/kyc requires phone-verified + all documents, which onboarding lacks.
-        when (val r = auth.onboard(s.role, s.name.ifBlank { null })) {
-            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true, signedInRole = s.role) }
+        // Carpooling has one persona: a "member" who can host or book rides. We onboard everyone under
+        // the DRIVER role so hosting reuses the existing KYC/driver_profiles; booking only needs a phone.
+        when (val r = auth.onboard(UserRole.DRIVER, s.name.ifBlank { null })) {
+            is AppResult.Ok -> _state.update { it.copy(loading = false, signedIn = true, signedInRole = UserRole.DRIVER) }
             is AppResult.Err -> fail(r.message)
         }
     }

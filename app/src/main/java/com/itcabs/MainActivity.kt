@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -148,11 +149,55 @@ private fun LogoTitle(text: String) {
 
 @Composable
 private fun RoleHome(role: UserRole, isAdmin: Boolean, coordinatorPending: Boolean, route: String?, onSignOut: () -> Unit) {
-    when (role) {
-        UserRole.DRIVER -> DriverHome(startTab = if (route == "driver_company") 3 else 0, onSignOut = onSignOut)
-        UserRole.COORDINATOR ->
-            if (coordinatorPending) CoordinatorAwaitingScreen(onSignOut)
-            else CoordinatorHome(isAdmin, startTab = if (route == "coordinator_company") 1 else 0, onSignOut = onSignOut)
+    // Roles collapsed: everyone is a carpooling "member". role/coordinatorPending/route are legacy
+    // dispatch concepts kept in the signature during the transition.
+    MemberHome(isAdmin = isAdmin, onSignOut = onSignOut)
+}
+
+/** The single post-login home for carpooling: Carpool + Profile (+ Admin for is_admin users). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemberHome(isAdmin: Boolean, onSignOut: () -> Unit) {
+    var tab by remember { mutableIntStateOf(0) }
+    BackHandler(enabled = tab != 0) { tab = 0 }
+    val title = when (tab) {
+        0 -> "Carpool"
+        1 -> "Profile"
+        else -> "Admin"
+    }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { LogoTitle(title) },
+                actions = { TextButton(onClick = onSignOut) { Text("Sign out") } },
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = tab == 0, onClick = { tab = 0 },
+                    icon = { Icon(Icons.Filled.Groups, contentDescription = null) }, label = { Text("Carpool") },
+                )
+                NavigationBarItem(
+                    selected = tab == 1, onClick = { tab = 1 },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = null) }, label = { Text("Profile") },
+                )
+                if (isAdmin) NavigationBarItem(
+                    selected = tab == 2, onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.VerifiedUser, contentDescription = null) }, label = { Text("Admin") },
+                )
+            }
+        },
+    ) { padding ->
+        var showEarnings by rememberSaveable { mutableStateOf(false) }
+        Crossfade(targetState = tab, animationSpec = tween(200), modifier = Modifier.padding(padding), label = "memberTab") { t ->
+            when (t) {
+                0 -> RidesScreen()
+                1 -> if (showEarnings) DriverEarningsScreen(onBack = { showEarnings = false })
+                     else ProfileScreen(onSignOut = onSignOut, onViewEarnings = { showEarnings = true })
+                else -> AdminScreen()
+            }
+        }
     }
 }
 
